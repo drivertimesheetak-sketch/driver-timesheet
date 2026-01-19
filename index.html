@@ -1,0 +1,3504 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Work Tracker App</title>
+    
+    <!-- PWA / Mobile Web App Settings -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#ffffff">
+    
+    <!-- Tailwind CSS (Play CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <!-- Import Maps for React & Lucide -->
+    <script type="importmap">
+        {
+            "imports": {
+                "react": "https://esm.sh/react@18.2.0",
+                "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+                "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+            }
+        }
+    </script>
+
+    <!-- Babel for JSX transformation in browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* 基本的なリセットとモバイル向けの調整 */
+        body {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            overscroll-behavior-y: none; /* バウンススクロール防止 */
+        }
+        /* 入力フォームのフォーカス時のズーム防止（iOS） */
+        input, select, textarea {
+            font-size: 16px !important;
+            /* iOS PWAでキーボードが出ない問題の対策 */
+            -webkit-user-select: text;
+            user-select: text;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-900 h-[100dvh] w-full overflow-hidden">
+    <div id="root" class="h-full w-full"></div>
+
+    <!-- React Application Logic -->
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useMemo, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import {
+            ChevronLeft, ChevronRight, X, Save, Clock, Calendar as CalendarIcon,
+            FileText, Trash2, CheckCircle2, BarChart3, PieChart, Briefcase,
+            MapPin, Train, LayoutList, LayoutGrid, HardHat, Settings, Palmtree,
+            Smile, Sparkles, Loader2, Bot, Truck, Plus, Minus, ChevronDown,
+            ChevronUp, Palette, Stethoscope, Receipt, AlertCircle, Coins, Download, Upload,
+            Maximize, Minimize, Info, Lock, Delete, RotateCcw
+        } from 'lucide-react';
+
+        // アニメーション用のスタイルを追加
+        const AnimationStyles = () => (
+        <style>{`
+            @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+            }
+            .animation-fade-in {
+            animation: fadeIn 0.2s ease-out forwards;
+            }
+            .animate-in { animation: fadeIn 0.2s ease-out forwards; }
+            
+            @keyframes slideDown {
+            from { transform: translate(-50%, -100%); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+            }
+            .toast-slide-down {
+            animation: slideDown 0.3s ease-out forwards;
+            }
+            
+            @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-10px); }
+            40% { transform: translateX(10px); }
+            60% { transform: translateX(-10px); }
+            80% { transform: translateX(10px); }
+            }
+            .animate-shake {
+            animation: shake 0.4s ease-in-out;
+            }
+
+            /* スクロールバー非表示 */
+            .no-scrollbar::-webkit-scrollbar {
+            display: none;
+            }
+            .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+            }
+        `}</style>
+        );
+
+        // トースト通知コンポーネント
+        const Toast = ({ message, type, onClose }) => {
+        useEffect(() => {
+            const timer = setTimeout(() => {
+            onClose();
+            }, 3000);
+            return () => clearTimeout(timer);
+        }, [onClose]);
+
+        return (
+            <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-bold toast-slide-down
+            ${type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-800 text-white'}
+            `}>
+            {type === 'error' ? <AlertCircle size={18} /> : <Info size={18} />}
+            {message}
+            </div>
+        );
+        };
+
+        // パスコードロック画面コンポーネント
+        const PasscodeLock = ({ onUnlock, correctPasscode }) => {
+        const [input, setInput] = useState('');
+        const [error, setError] = useState('');
+        const [isShaking, setIsShaking] = useState(false);
+
+        const handlePress = (num) => {
+            if (input.length >= 4) return;
+            const nextInput = input + num;
+            setInput(nextInput);
+            setError('');
+
+            // 4桁入力されたら判定
+            if (nextInput.length === 4) {
+            if (nextInput === correctPasscode) {
+                // 少し待ってからロック解除（入力完了が見えるように）
+                setTimeout(() => {
+                onUnlock();
+                }, 100);
+            } else {
+                // エラー処理
+                setTimeout(() => {
+                setError('パスワードが違います');
+                setIsShaking(true);
+                // アニメーション後にリセット
+                setTimeout(() => {
+                    setInput('');
+                    setIsShaking(false);
+                }, 400);
+                }, 100);
+            }
+            }
+        };
+
+        const handleDelete = () => {
+            setInput(input.slice(0, -1));
+            setError('');
+        };
+
+        return (
+            <div className="flex flex-col h-screen w-full items-center justify-center bg-slate-50 p-4 font-sans select-none">
+            <div className={`w-full max-w-xs flex flex-col items-center gap-8 ${isShaking ? 'animate-shake' : ''}`}>
+                
+                <div className="flex flex-col items-center gap-2">
+                <div className="p-4 bg-blue-100 rounded-full text-blue-600 mb-2">
+                    <Lock size={32} />
+                </div>
+                <h2 className="text-xl font-bold text-slate-700">パスワードを入力</h2>
+                <p className="text-xs text-slate-400">設定された4桁の数字を入力してください</p>
+                </div>
+
+                {/* インジケーター */}
+                <div className="flex gap-4 my-4">
+                {[0, 1, 2, 3].map((i) => (
+                    <div
+                    key={i}
+                    className={`w-4 h-4 rounded-full transition-all duration-200 border-2
+                        ${i < input.length 
+                        ? 'bg-blue-600 border-blue-600 scale-110' 
+                        : 'bg-white border-slate-300'
+                        }
+                        ${error ? 'border-red-500 bg-red-100' : ''}
+                    `}
+                    />
+                ))}
+                </div>
+
+                {error && (
+                <div className="text-red-500 text-sm font-bold animate-in fade-in slide-in-from-top-1">
+                    {error}
+                </div>
+                )}
+
+                {/* キーパッド */}
+                <div className="grid grid-cols-3 gap-4 w-full px-4">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                    <button
+                    key={num}
+                    onClick={() => handlePress(String(num))}
+                    className="aspect-square rounded-full bg-white shadow-sm border border-slate-200 text-2xl font-bold text-slate-700 active:bg-slate-100 active:scale-95 transition-all flex items-center justify-center"
+                    >
+                    {num}
+                    </button>
+                ))}
+                <div className="aspect-square flex items-center justify-center">
+                    {/* 空白 */}
+                </div>
+                <button
+                    onClick={() => handlePress('0')}
+                    className="aspect-square rounded-full bg-white shadow-sm border border-slate-200 text-2xl font-bold text-slate-700 active:bg-slate-100 active:scale-95 transition-all flex items-center justify-center"
+                >
+                    0
+                </button>
+                <button
+                    onClick={handleDelete}
+                    className="aspect-square rounded-full bg-transparent text-slate-400 active:text-slate-600 active:scale-95 transition-all flex items-center justify-center"
+                >
+                    <Delete size={32} />
+                </button>
+                </div>
+            </div>
+            </div>
+        );
+        };
+
+        // 時間選択コンポーネント
+        const TimeSelect = ({ value, onChange, minuteOptions }) => {
+        const [hStr, mStr] = (value || '00:00').split(':');
+        const h = parseInt(hStr || '0', 10);
+        const m = parseInt(mStr || '0', 10);
+
+        const HOUR_OPTIONS = Array.from({ length: 25 }, (_, i) => i);
+        const MINUTE_OPTIONS_1 = Array.from({ length: 60 }, (_, i) => i);
+        const minutes = minuteOptions || MINUTE_OPTIONS_1;
+
+        const handleHChange = (e) => {
+            const newH = e.target.value;
+            onChange(`${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+        };
+
+        const handleMChange = (e) => {
+            const newM = e.target.value;
+            onChange(`${String(h).padStart(2, '0')}:${String(newM).padStart(2, '0')}`);
+        };
+
+        return (
+            <div className="flex items-center gap-1 w-full">
+            <select
+                value={h}
+                onChange={handleHChange}
+                className="flex-1 p-2.5 border rounded-lg bg-white/80 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
+            >
+                {HOUR_OPTIONS.map(hour => (
+                <option key={hour} value={hour}>{hour}時</option>
+                ))}
+            </select>
+            <span className="text-gray-400 font-bold">:</span>
+            <select
+                value={m}
+                onChange={handleMChange}
+                className="flex-1 p-2.5 border rounded-lg bg-white/80 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
+            >
+                {minutes.map(minute => (
+                <option key={minute} value={minute}>{String(minute).padStart(2, '0')}分</option>
+                ))}
+            </select>
+            </div>
+        );
+        };
+
+        // カスタム車両選択コンポーネント
+        const VehicleSelect = ({ index, value, onChange, vehicleMaster }) => {
+        const [isOpen, setIsOpen] = useState(false);
+
+        // カテゴリごとのスタイル定義
+        const CATEGORY_STYLES = {
+            '緊急': {
+            header: 'bg-red-100 text-red-800 border-red-200',
+            item: 'hover:bg-red-50 text-red-700',
+            border: 'border-red-100',
+            icon: 'text-red-500'
+            },
+            '中継': {
+            header: 'bg-blue-100 text-blue-800 border-blue-200',
+            item: 'hover:bg-blue-50 text-blue-700',
+            border: 'border-blue-100',
+            icon: 'text-blue-500'
+            },
+            'NBC': {
+            header: 'bg-purple-100 text-purple-800 border-purple-200',
+            item: 'hover:bg-purple-50 text-purple-700',
+            border: 'border-purple-100',
+            icon: 'text-purple-500'
+            },
+            'NT': {
+            header: 'bg-teal-100 text-teal-800 border-teal-200',
+            item: 'hover:bg-teal-50 text-teal-700',
+            border: 'border-teal-100',
+            icon: 'text-teal-500'
+            },
+            '技研・その他': {
+            header: 'bg-orange-100 text-orange-800 border-orange-200',
+            item: 'hover:bg-orange-50 text-orange-700',
+            border: 'border-orange-100',
+            icon: 'text-orange-500'
+            },
+            'default': {
+            header: 'bg-gray-100 text-gray-800 border-gray-200',
+            item: 'hover:bg-gray-50 text-gray-700',
+            border: 'border-gray-200',
+            icon: 'text-gray-500'
+            }
+        };
+
+        const handleSelect = (vehicleName) => {
+            onChange(vehicleName);
+            setIsOpen(false);
+        };
+
+        // 現在選択されている車両がどのカテゴリか判定して色を決める
+        const getSelectedStyle = () => {
+            if (!value) return null;
+            for (const [cat, vehicles] of Object.entries(vehicleMaster)) {
+            if (vehicles.includes(value)) {
+                return CATEGORY_STYLES[cat] || CATEGORY_STYLES['default'];
+            }
+            }
+            return CATEGORY_STYLES['default'];
+        };
+
+        const selectedStyle = getSelectedStyle();
+
+        return (
+            <>
+            <div className="relative w-full">
+                {/* トリガーボタン */}
+                <button
+                type="button"
+                onClick={() => setIsOpen(true)}
+                className={`w-full p-2.5 text-sm border rounded-md text-left flex justify-between items-center transition-all shadow-sm
+                    ${value
+                    ? `${selectedStyle?.header.replace('bg-', 'bg-opacity-20 bg-')} ${selectedStyle?.item} border-${selectedStyle?.icon.split('-')[1]}-300`
+                    : 'bg-white/80 border-green-200 text-gray-500 hover:bg-green-50'
+                    }
+                    focus:ring-2 focus:ring-green-500 outline-none
+                `}
+                >
+                <span className="truncate">{value || `-- 車両 ${index + 1} --`}</span>
+                <ChevronDown size={16} />
+                </button>
+            </div>
+
+            {/* モーダル形式のドロップダウン (z-indexを高くして最前面表示) */}
+            {isOpen && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                {/* 背景オーバーレイ */}
+                <div 
+                    className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
+                    onClick={() => setIsOpen(false)}
+                />
+                {/* リスト本体 */}
+                <div className="relative bg-white w-full max-w-sm max-h-[70vh] rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                    <div className="p-3 border-b bg-gray-50 flex justify-between items-center shrink-0">
+                    <h4 className="font-bold text-gray-700 flex items-center gap-2">
+                        <Truck size={18} className="text-green-600"/>
+                        車両を選択 ({index + 1})
+                    </h4>
+                    <button onClick={() => setIsOpen(false)} className="p-1 rounded-full hover:bg-gray-200 transition-colors">
+                        <X size={20} className="text-gray-500"/>
+                    </button>
+                    </div>
+                    
+                    <div className="overflow-y-auto p-2 flex-1">
+                        <div
+                        className="p-3 mb-2 hover:bg-gray-100 text-gray-500 text-sm cursor-pointer border border-dashed border-gray-300 rounded-lg text-center font-bold"
+                        onClick={() => handleSelect('')}
+                        >
+                        選択解除
+                        </div>
+                        {Object.entries(vehicleMaster).map(([category, items]) => {
+                        const style = CATEGORY_STYLES[category] || CATEGORY_STYLES['default'];
+                        return (
+                            <div key={category} className="mb-2 last:mb-0">
+                            <div className={`text-xs font-bold px-2 py-1 ${style.header} rounded-t-md sticky top-0 z-10`}>
+                                {category}
+                            </div>
+                            <div className={`grid grid-cols-1 border-x border-b rounded-b-md ${style.border}`}>
+                                {items.map(item => (
+                                <div
+                                    key={item}
+                                    onClick={() => handleSelect(item)}
+                                    className={`px-3 py-3 text-sm cursor-pointer border-b border-gray-50 last:border-0 transition-colors flex justify-between items-center ${style.item} ${value === item ? 'font-bold bg-gray-50' : ''}`}
+                                >
+                                    {item}
+                                    {value === item && <CheckCircle2 size={16} className={style.icon}/>}
+                                </div>
+                                ))}
+                            </div>
+                            </div>
+                        );
+                        })}
+                    </div>
+                </div>
+                </div>
+            )}
+            </>
+        );
+        };
+
+        // 削除確認モーダル
+        const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
+        if (!isOpen) return null;
+        return (
+            <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
+            <div className="bg-white w-full max-w-xs rounded-xl shadow-2xl overflow-hidden p-4 text-center">
+                <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-3">
+                <AlertCircle className="text-red-600" size={24} />
+                </div>
+                <h3 className="font-bold text-gray-900 mb-2">{title}</h3>
+                <p className="text-sm text-gray-600 mb-6">{message}</p>
+                <div className="flex gap-3">
+                <button onClick={onClose} className="flex-1 py-2 text-sm font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg">
+                    キャンセル
+                </button>
+                <button onClick={onConfirm} className="flex-1 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow">
+                    削除する
+                </button>
+                </div>
+            </div>
+            </div>
+        );
+        };
+
+        const App = () => {
+        // --- State ---
+        // 認証状態のステート
+        const [isAuthenticated, setIsAuthenticated] = useState(false);
+        // 初回表示モーダルのステート
+        const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
+        const [tempDontShow, setTempDontShow] = useState(false);
+
+        const [currentDate, setCurrentDate] = useState(new Date());
+        const [selectedDate, setSelectedDate] = useState(null);
+        const [workData, setWorkData] = useState({});
+        // ローカルストレージからのロード完了フラグ
+        const [isDataLoaded, setIsDataLoaded] = useState(false);
+
+        const [isModalOpen, setIsModalOpen] = useState(false);
+        const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+        const [isVehicleSettingsOpen, setIsVehicleSettingsOpen] = useState(false);
+        const [isVehicleSummaryOpen, setIsVehicleSummaryOpen] = useState(false);
+        const [isWorkTypeSummaryOpen, setIsWorkTypeSummaryOpen] = useState(false);
+        // 設定変更モーダル
+        const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+        // 設定用一時ステート
+        const [tempPasscode, setTempPasscode] = useState('');
+        
+        // データリセット用ステート
+        const [isResetViewOpen, setIsResetViewOpen] = useState(false);
+        const [resetPasscode, setResetPasscode] = useState('');
+
+        const [summaryTab, setSummaryTab] = useState('month');
+        const [viewMode, setViewMode] = useState('month');
+        const [isFullscreen, setIsFullscreen] = useState(false);
+        
+        // Notification State
+        const [notification, setNotification] = useState(null);
+
+        // Helper to show notification
+        const showToast = (message, type = 'info') => {
+            setNotification({ message, type });
+        };
+
+        // インポート用のファイル入力参照
+        const fileInputRef = useRef(null);
+
+        // レポート用年月State
+        const [reportYear, setReportYear] = useState(new Date().getFullYear());
+        const [reportMonth, setReportMonth] = useState(new Date().getMonth());
+
+        // テーマカラー設定
+        const [themeColor, setThemeColor] = useState('bg-gray-50');
+
+        // 設定値 (passcodeを追加, 初期値8810)
+        const [settings, setSettings] = useState({
+            manualSubHolidays: 0,
+            medicalLeaveGrant: 0, // 医療休暇付与日数（デフォルト20）
+            passcode: '0000', // デフォルトパスワード
+            manualPaidLeaveDeduction: 0, // 追加: 有休手動減算
+            manualCreativeLeaveDeduction: 0, // 追加: クリ休手動減算
+            manualNursingLeaveDeduction: 0, // 追加: 看護休手動減算
+            manualCareLeaveDeduction: 0, // 追加: 介護休手動減算
+        });
+
+        // スワイプ用state
+        const [touchStart, setTouchStart] = useState(null);
+        const [touchEnd, setTouchEnd] = useState(null);
+        const minSwipeDistance = 50;
+
+        // 車両マスタ編集用のState
+        const [addingVehicleCategory, setAddingVehicleCategory] = useState(null);
+        const [newVehicleName, setNewVehicleName] = useState('');
+        const [deleteConfirmation, setDeleteConfirmation] = useState(null); // { category, name } or null
+
+        const [isCostSummaryOpen, setIsCostSummaryOpen] = useState(false); // 経費集計アコーディオン用
+
+        // 車両マスタ初期値
+        const INITIAL_VEHICLES = {
+            '緊急': [
+            'AK-32', 'AK-13', 'FP-1', 'FP-2', 'FP-3', 'FP-4', 'N-16',
+            'AHP-2', 'AHP-4', '支援車', 'AK-B1', 'SS-1', 'SS-2', 'SS-3',
+            'ミニキャブ', '小ルート', 'ランクル', '4161', '3792', '1082'
+            ],
+            '中継': [
+            'HC-3', 'HC-4', 'HC-5', 'HC-6',
+            '4K-1', '4K-5', 'AK-30', 'AK-35',
+            'Z-1', 'Z-2',
+            'AH-36', 'AH-37', 'AM-34', 'AH-71', 'AH-72',
+            'HA-1', 'HM-2', 'HVDR-1',
+            'R-1', 'EG-1', 'EG-2', 'RS-1', 'RS-2',
+            'A-1', '4K-2', '4K-3', '4K-4', 'SA-1',
+            '4K-SWC', 'SHC-4'
+            ],
+            'NBC': [
+            'ミニバス660', 'ミニバス3016', 'ミニバス3272', 'ミニバス3276',
+            'ミニバス963', 'ミニバス1754', 'ミニバス2101', 'ミニバス2583',
+            '大ルート708', '大ルート500', '大ルート636'
+            ],
+            'NT': [
+            'T-2', 'S-1', 'S-2', '4K-OB1', 'Wakey号'
+            ],
+            '技研・その他': [
+            'ハイエース', 'コースター', '広域車', 'レンタカー'
+            ]
+        };
+
+        const [vehicleMaster, setVehicleMaster] = useState(INITIAL_VEHICLES);
+
+        // モーダル用の一時ステート
+        const [tempEntry, setTempEntry] = useState({
+            startTime: '',
+            endTime: '',
+            type: 'work',
+            workPatternId: 'standard',
+            note: '',
+            isSiteStart: false,
+            isSiteEnd: false,
+            isTempOvernight: false, // 追加
+            isHolidayWork: false,
+            holidayWorkType: null,
+            transportations: Array.from({ length: 10 }, () => ({ name: '', cost: '' })),
+            expenses: Array.from({ length: 10 }, () => ({ name: '', cost: '' })),
+            vehicles: Array.from({ length: 5 }, () => ''),
+        });
+
+        // --- 定数定義 ---
+        const THEME_COLORS = [
+            { id: 'red', class: 'bg-red-50', border: 'border-red-100', label: '赤' },
+            { id: 'orange', class: 'bg-orange-50', border: 'border-orange-100', label: '橙' },
+            { id: 'yellow', class: 'bg-yellow-50', border: 'border-yellow-100', label: '黄' },
+            { id: 'green', class: 'bg-green-50', border: 'border-green-100', label: '緑' },
+            { id: 'blue', class: 'bg-blue-50', border: 'border-blue-100', label: '青' },
+            { id: 'indigo', class: 'bg-indigo-50', border: 'border-indigo-100', label: '藍' },
+            { id: 'purple', class: 'bg-purple-50', border: 'border-purple-100', label: '紫' },
+            { id: 'default', class: 'bg-gray-50', border: 'border-gray-100', label: '灰' },
+        ];
+
+        const WORK_PATTERNS = [
+            { id: 'standard', label: '通常 (9時間)', hours: 9.0 },
+            { id: 'long', label: '10.5 (11時間30分)', hours: 11.5 },
+            { id: 'short', label: '5.5 (6時間30分)', hours: 6.5 },
+        ];
+
+        const WORK_TYPES = [
+            { id: 'work', label: '日勤', group: 'work', color: 'bg-white text-blue-700 border-blue-200' },
+            { id: 'overnight', label: '泊り', group: 'work', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+            { id: 'post_night', label: '明け', group: 'work', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+            // 出張の色をさらに5%薄く変更 (opacity 80%程度に調整)
+            { id: 'business_trip', label: '出張', group: 'work', color: 'bg-lime-100/80 text-lime-800/90 border-lime-200/80' },
+            // 8泊り・8明けの色を薄く変更 (bg-blue-200 -> bg-blue-100/50 等へ調整)
+            { id: '8overnight', label: '8泊り', group: 'work', color: 'bg-blue-100/50 text-blue-800/80 border-blue-200/50' },
+            { id: '8post_night', label: '8明け', group: 'work', color: 'bg-blue-100/50 text-blue-800/80 border-blue-200/50' },
+            // 法休・公休・祝日の色をさらに薄く調整 (opacity 65% 程度)
+            { id: 'legal_holiday', label: '法休', group: 'holiday', color: 'bg-red-100/65 text-red-700/65 border-red-200/65' },
+            { id: 'public_holiday', label: '公休', group: 'holiday', color: 'bg-red-100/65 text-red-700/65 border-red-200/65' },
+            { id: 'national_holiday', label: '祝日', group: 'holiday', color: 'bg-red-100/65 text-red-700/65 border-red-200/65' },
+            { id: 'paid_leave', label: '有休', group: 'leave', color: 'bg-red-50 text-red-600 border-red-100' },
+            { id: 'creative_leave', label: 'クリ休', group: 'leave', color: 'bg-red-50 text-red-600 border-red-100' },
+            { id: 'substitute_holiday', label: '代休', group: 'leave', color: 'bg-red-50 text-red-600 border-red-100' },
+            // 積立休と会社休の色を30%薄く調整 (opacity 70% 程度)
+            { id: 'medical_leave', label: '積立休', group: 'leave', color: 'bg-red-50/70 text-red-600/80 border-red-100/70' },
+            { id: 'nursing_leave', label: '看護休', group: 'leave', color: 'bg-red-50/70 text-red-600/80 border-red-100/70' },
+            { id: 'care_leave', label: '介護休', group: 'leave', color: 'bg-red-50/70 text-red-600/80 border-red-100/70' },
+            { id: 'company_holiday', label: '会社休', group: 'holiday', color: 'bg-red-50/70 text-red-600/80 border-red-100/70' },
+        ];
+
+        const HOLIDAY_OPTIONS = [
+            { id: 'day', label: '日勤' },
+            { id: 'business_trip', label: '出張' },
+            { id: '8overnight', label: '泊り' },
+            { id: '8post_night', label: '明け' },
+        ];
+
+        const MINUTE_OPTIONS_15 = [0, 15, 30, 45];
+        const MINUTE_OPTIONS_1 = Array.from({ length: 60 }, (_, i) => i);
+
+        // --- ヘルパー関数 ---
+        const timeToMinutes = (timeStr) => {
+            if (!timeStr) return 0;
+            const [h, m] = timeStr.split(':').map(Number);
+            return h * 60 + m;
+        };
+
+        const isWorkType = (typeId) => {
+            const type = WORK_TYPES.find(t => t.id === typeId);
+            return type ? type.group === 'work' : false;
+        };
+
+        const currentPattern = WORK_PATTERNS.find(p => p.id === tempEntry.workPatternId) || WORK_PATTERNS[0];
+        const showWorkInputs = isWorkType(tempEntry.type) || tempEntry.isHolidayWork;
+
+        // --- 祝日判定ロジック ---
+        const getJapaneseHoliday = (year, month, day) => {
+            if (month === 1 && day === 1) return '元日';
+            if (month === 2 && day === 11) return '建国記念の日';
+            if (month === 2 && day === 23) return '天皇誕生日';
+            if (month === 4 && day === 29) return '昭和の日';
+            if (month === 5 && day === 3) return '憲法記念日';
+            if (month === 5 && day === 4) return 'みどりの日';
+            if (month === 5 && day === 5) return 'こどもの日';
+            if (month === 11 && day === 3) return '文化の日';
+            if (month === 11 && day === 23) return '勤労感謝の日';
+
+            const date = new Date(year, month - 1, day);
+            const dayOfWeek = date.getDay();
+            const weekNumber = Math.floor((day - 1) / 7) + 1;
+
+            if (dayOfWeek === 1) {
+            if (month === 1 && weekNumber === 2) return '成人の日';
+            if (month === 7 && weekNumber === 3) return '海の日';
+            if (month === 9 && weekNumber === 3) return '敬老の日';
+            if (month === 10 && weekNumber === 2) return 'スポーツの日';
+            }
+
+            const vernal = Math.floor(20.8431 + 20.8431 * 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+            const autumnal = Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+            if (month === 3 && day === vernal) return '春分の日';
+            if (month === 9 && day === autumnal) return '秋分の日';
+
+            if (month === 8 && day === 11) return '山の日';
+
+            return null;
+        };
+
+        const getHolidayInfo = (year, month, day) => {
+            const holidayName = getJapaneseHoliday(year, month, day);
+            if (holidayName) return { isHoliday: true, name: holidayName };
+
+            const date = new Date(year, month - 1, day);
+            const dayOfWeek = date.getDay();
+
+            if (dayOfWeek === 1) {
+            const prevDate = new Date(year, month - 1, day - 1);
+            if (getJapaneseHoliday(prevDate.getFullYear(), prevDate.getMonth() + 1, prevDate.getDate())) {
+                return { isHoliday: true, name: '振替休日' };
+            }
+            }
+
+            if (month === 5 && day === 6) {
+            const d3 = new Date(year, 4, 3).getDay();
+            const d4 = new Date(year, 4, 4).getDay();
+            const d5 = new Date(year, 4, 5).getDay();
+            if (d3 === 0 || d4 === 0 || d5 === 0) {
+                return { isHoliday: true, name: '振替休日' };
+            }
+            }
+
+            return { isHoliday: false, name: '' };
+        };
+
+        // --- Effects (Persistence) ---
+        useEffect(() => {
+            // データ読み込み処理
+            const loadData = () => {
+            try {
+                const savedData = localStorage.getItem('workTrackerData');
+                if (savedData) {
+                setWorkData(JSON.parse(savedData));
+                }
+                
+                const savedSettings = localStorage.getItem('workTrackerSettings');
+                if (savedSettings) {
+                setSettings(prev => ({ ...prev, ...JSON.parse(savedSettings) }));
+                }
+                
+                const savedVehicles = localStorage.getItem('workTrackerVehicles');
+                if (savedVehicles) {
+                setVehicleMaster(JSON.parse(savedVehicles));
+                }
+                
+                const savedTheme = localStorage.getItem('workTrackerTheme');
+                if (savedTheme) {
+                setThemeColor(savedTheme);
+                }
+            } catch (error) {
+                console.error("Failed to load data from localStorage", error);
+                showToast("データの読み込みに失敗しました", "error");
+            } finally {
+                // ロード完了フラグを立てる（これにより、空データの誤保存を防ぎつつ、意図的な全削除は保存できるようになる）
+                setIsDataLoaded(true);
+            }
+            };
+
+            loadData();
+        }, []);
+
+        // 自動保存：勤務データ
+        useEffect(() => {
+            // ロードが完了していない間は保存処理をスキップ（初期値で上書きしてしまうのを防ぐ）
+            if (!isDataLoaded) return;
+
+            localStorage.setItem('workTrackerData', JSON.stringify(workData));
+        }, [workData, isDataLoaded]);
+
+        // 自動保存：設定
+        useEffect(() => {
+            if (!isDataLoaded) return;
+            localStorage.setItem('workTrackerSettings', JSON.stringify(settings));
+        }, [settings, isDataLoaded]);
+
+        // 自動保存：車両マスタ
+        useEffect(() => {
+            if (!isDataLoaded) return;
+            localStorage.setItem('workTrackerVehicles', JSON.stringify(vehicleMaster));
+        }, [vehicleMaster, isDataLoaded]);
+
+        // 自動保存：テーマ
+        useEffect(() => {
+            if (!isDataLoaded) return;
+            localStorage.setItem('workTrackerTheme', themeColor);
+        }, [themeColor, isDataLoaded]);
+
+        // アプリライクな表示（PWA/フルスクリーン）のためのメタタグ設定
+        useEffect(() => {
+            const metaTags = [
+            { name: 'apple-mobile-web-app-capable', content: 'yes' },
+            { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+            { name: 'mobile-web-app-capable', content: 'yes' },
+            ];
+
+            metaTags.forEach(tagInfo => {
+            let meta = document.head.querySelector(`meta[name="${tagInfo.name}"]`);
+            if (!meta) {
+                meta = document.createElement('meta');
+                meta.name = tagInfo.name;
+                document.head.appendChild(meta);
+            }
+            meta.content = tagInfo.content;
+            });
+
+            const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+            };
+            document.addEventListener('fullscreenchange', handleFullscreenChange);
+            return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+        }, []);
+
+        const toggleFullscreen = () => {
+            if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.warn(`Error attempting to enable full-screen mode: ${err.message}`);
+                showToast("この環境では全画面表示が許可されていません。", "error");
+            });
+            } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+            }
+        };
+
+        // --- 日付操作 ---
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const firstDayOfMonth = new Date(year, month, 1).getDay();
+
+        const getWeekStartDate = (date) => {
+            const d = new Date(date);
+            const day = d.getDay();
+            const diff = d.getDate() - day;
+            return new Date(d.setDate(diff));
+        };
+        const weekStartDate = getWeekStartDate(currentDate);
+
+        const prevPeriod = () => {
+            setCurrentDate(new Date(year, month - 1, 1));
+        };
+
+        const nextPeriod = () => {
+            setCurrentDate(new Date(year, month + 1, 1));
+        };
+
+        const onTouchStart = (e) => {
+            setTouchEnd(null);
+            setTouchStart(e.targetTouches[0].clientX);
+        };
+
+        const onTouchMove = (e) => {
+            setTouchEnd(e.targetTouches[0].clientX);
+        };
+
+        const onTouchEnd = () => {
+            if (!touchStart || !touchEnd) return;
+            const distance = touchStart - touchEnd;
+            const isLeftSwipe = distance > minSwipeDistance;
+            const isRightSwipe = distance < -minSwipeDistance;
+            if (isLeftSwipe) nextPeriod();
+            if (isRightSwipe) prevPeriod();
+        };
+
+        const handleYearChange = (e) => {
+            const newYear = parseInt(e.target.value, 10);
+            setCurrentDate(new Date(newYear, month, 1));
+        };
+
+        const handleMonthChange = (e) => {
+            const newMonth = parseInt(e.target.value, 10);
+            setCurrentDate(new Date(year, newMonth, 1));
+        };
+
+        const yearOptions = Array.from({ length: 16 }, (_, i) => 2025 + i);
+
+        // --- Handlers ---
+        const handleDateClick = (targetDate) => {
+            const y = targetDate.getFullYear();
+            const m = targetDate.getMonth() + 1;
+            const d = targetDate.getDate();
+            const dateKey = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            setSelectedDate(dateKey);
+
+            const defaultTransportations = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
+            const defaultExpenses = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
+            const defaultVehicles = Array.from({ length: 10 }, () => '');
+
+            const { isHoliday } = getHolidayInfo(y, m, d);
+
+            if (workData[dateKey]) {
+            setTempEntry({
+                ...workData[dateKey],
+                workPatternId: workData[dateKey].workPatternId || 'standard',
+                isSiteStart: workData[dateKey].isSiteStart || false,
+                isSiteEnd: workData[dateKey].isSiteEnd || false,
+                isTempOvernight: workData[dateKey].isTempOvernight || false, // 追加
+                isHolidayWork: workData[dateKey].isHolidayWork || false,
+                holidayWorkType: workData[dateKey].holidayWorkType || null,
+                transportations: workData[dateKey].transportations 
+                    ? [...workData[dateKey].transportations, ...Array(10).fill({name:'',cost:''})].slice(0, 10) 
+                    : defaultTransportations,
+                expenses: workData[dateKey].expenses 
+                    ? [...workData[dateKey].expenses, ...Array(10).fill({name:'',cost:''})].slice(0, 10)
+                    : defaultExpenses,
+                vehicles: workData[dateKey].vehicles ? [...workData[dateKey].vehicles, ...Array(10).fill('')].slice(0, 10) : defaultVehicles,
+            });
+            } else {
+            setTempEntry({
+                startTime: '09:00',
+                endTime: '18:00',
+                type: null,
+                workPatternId: 'standard',
+                note: '',
+                isSiteStart: false,
+                isSiteEnd: false,
+                isTempOvernight: false, // 追加
+                isHolidayWork: false,
+                holidayWorkType: null,
+                transportations: defaultTransportations,
+                expenses: defaultExpenses,
+                vehicles: defaultVehicles,
+            });
+            }
+            setIsModalOpen(true);
+        };
+
+        const handleSave = () => {
+            setWorkData(prev => ({
+            ...prev,
+            [selectedDate]: {
+                ...tempEntry,
+                breakTime: undefined
+            }
+            }));
+            // showToast("保存しました"); // 削除
+            setIsModalOpen(false);
+        };
+
+        const handleDelete = () => {
+            const newData = { ...workData };
+            delete newData[selectedDate];
+            setWorkData(newData);
+            // showToast("削除しました"); // 削除
+            setIsModalOpen(false);
+        };
+
+        // 設定保存ハンドラ
+        const saveConfig = () => {
+            setSettings(prev => ({ ...prev, passcode: tempPasscode }));
+            setIsConfigModalOpen(false);
+            showToast("パスコードを更新しました");
+        };
+
+        // データリセットハンドラ
+        const handleResetData = () => {
+            if (resetPasscode === settings.passcode) {
+                // ダイアログ(window.confirm)は環境によってブロックされるため削除し直接実行する
+                localStorage.removeItem('workTrackerData');
+                localStorage.removeItem('workTrackerSettings');
+                localStorage.removeItem('workTrackerVehicles');
+                localStorage.removeItem('workTrackerTheme');
+                
+                // 完了メッセージを表示してからリロード
+                showToast("データを初期化しました。再読み込みします...", "info");
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                showToast("パスワードが間違っています", "error");
+            }
+        };
+
+        // 休暇設定リセットハンドラ
+        const handleResetLeaveSettings = () => {
+            setSettings(prev => ({
+                ...prev,
+                manualPaidLeaveDeduction: 0,
+                manualCreativeLeaveDeduction: 0,
+                manualNursingLeaveDeduction: 0,
+                manualCareLeaveDeduction: 0
+            }));
+            showToast("休暇設定をリセットしました");
+        };
+
+        // 設定モーダルオープン
+        const openConfigModal = () => {
+            setTempPasscode(settings.passcode);
+            setIsResetViewOpen(false); // リセット画面は閉じておく
+            setResetPasscode('');
+            setIsConfigModalOpen(true);
+        };
+
+        // ... (Export/Import/Vehicle logic unchanged) ...
+        // CSVエクスポート機能
+        const handleExportCSV = () => {
+            // ヘッダー行
+            const headers = [
+            '日付', '曜日', '勤務区分', '開始時間', '終了時間',
+            '勤務パターン', '備考', '現出', '現退',
+            '休日出勤', '休出タイプ',
+            '車両1', '車両2', '車両3', '車両4', '車両5',
+            // 交通費詳細 (10件分)
+            '交通費1内容', '交通費1金額',
+            '交通費2内容', '交通費2金額',
+            '交通費3内容', '交通費3金額',
+            '交通費4内容', '交通費4金額',
+            '交通費5内容', '交通費5金額',
+            '交通費6内容', '交通費6金額',
+            '交通費7内容', '交通費7金額',
+            '交通費8内容', '交通費8金額',
+            '交通費9内容', '交通費9金額',
+            '交通費10内容', '交通費10金額',
+            // 立替費詳細 (10件分)
+            '立替費1内容', '立替費1金額',
+            '立替費2内容', '立替費2金額',
+            '立替費3内容', '立替費3金額',
+            '立替費4内容', '立替費4金額',
+            '立替費5内容', '立替費5金額',
+            '立替費6内容', '立替費6金額',
+            '立替費7内容', '立替費7金額',
+            '立替費8内容', '立替費8金額',
+            '立替費9内容', '立替費9金額',
+            '立替費10内容', '立替費10金額'
+            ];
+
+            // データ行の作成
+            const rows = Object.keys(workData).sort().map(dateKey => {
+            const entry = workData[dateKey];
+            const [y, m, d] = dateKey.split('-').map(Number);
+            const dateObj = new Date(y, m - 1, d);
+            const dayName = ['日', '月', '火', '水', '木', '金', '土'][dateObj.getDay()];
+            
+            const typeLabel = WORK_TYPES.find(t => t.id === entry.type)?.label || entry.type;
+            const patternLabel = WORK_PATTERNS.find(p => p.id === entry.workPatternId)?.label || entry.workPatternId;
+            const holidayWorkTypeLabel = HOLIDAY_OPTIONS.find(o => o.id === entry.holidayWorkType)?.label || '';
+
+            // CSVのエスケープ処理（ダブルクォートで囲み、内部のダブルクォートは2つにする）
+            const escape = (str) => {
+                if (str === null || str === undefined) return '';
+                const stringValue = String(str);
+                if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+                return `"${stringValue.replace(/"/g, '""')}"`;
+                }
+                return stringValue;
+            };
+
+            const vehicles = entry.vehicles || [];
+            
+            // 交通費と立替費の配列を必ず10要素にする
+            const fillArray = (arr, length) => {
+                const res = arr ? [...arr] : [];
+                while (res.length < length) res.push({ name: '', cost: '' });
+                return res.slice(0, length);
+            };
+
+            const transports = fillArray(entry.transportations, 10);
+            const expenses = fillArray(entry.expenses, 10);
+
+            return [
+                dateKey,
+                dayName,
+                escape(typeLabel),
+                escape(entry.startTime),
+                escape(entry.endTime),
+                escape(patternLabel),
+                escape(entry.note),
+                entry.isSiteStart ? '〇' : '',
+                entry.isSiteEnd ? '〇' : '',
+                entry.isHolidayWork ? '〇' : '',
+                escape(holidayWorkTypeLabel),
+                escape(vehicles[0] || ''),
+                escape(vehicles[1] || ''),
+                escape(vehicles[2] || ''),
+                escape(vehicles[3] || ''),
+                escape(vehicles[4] || ''),
+                // 交通費詳細展開
+                ...transports.flatMap(t => [escape(t.name), escape(t.cost)]),
+                // 立替費詳細展開
+                ...expenses.flatMap(e => [escape(e.name), escape(e.cost)])
+            ].join(',');
+            });
+
+            // BOM付きUTF-8で出力（Excel対策）
+            const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `timesheet_backup_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        // CSVインポート機能
+        const handleFileSelect = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+            const text = e.target.result;
+            const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
+            if (lines.length < 2) return; // ヘッダーのみまたは空の場合
+
+            const newWorkData = { ...workData };
+            let importCount = 0;
+
+            // CSV行パース関数（ダブルクォート考慮）
+            const parseCSVLine = (line) => {
+                const result = [];
+                let startValueIndex = 0;
+                let inQuotes = false;
+                for (let i = 0; i < line.length; i++) {
+                if (line[i] === '"') {
+                    inQuotes = !inQuotes;
+                } else if (line[i] === ',' && !inQuotes) {
+                    let val = line.substring(startValueIndex, i);
+                    if (val.startsWith('"') && val.endsWith('"')) {
+                    val = val.slice(1, -1).replace(/""/g, '"');
+                    }
+                    result.push(val);
+                    startValueIndex = i + 1;
+                }
+                }
+                let val = line.substring(startValueIndex);
+                if (val.startsWith('"') && val.endsWith('"')) {
+                val = val.slice(1, -1).replace(/""/g, '"');
+                }
+                result.push(val);
+                return result;
+            };
+
+            // ラベル逆引きヘルパー
+            const getTypeIdByLabel = (label) => WORK_TYPES.find(t => t.label === label)?.id || 'work';
+            const getPatternIdByLabel = (label) => WORK_PATTERNS.find(p => p.label === label)?.id || 'standard';
+            const getHolidayTypeIdByLabel = (label) => HOLIDAY_OPTIONS.find(o => o.label === label)?.id || null;
+
+            // データ行の処理（1行目はヘッダーなのでスキップ）
+            for (let i = 1; i < lines.length; i++) {
+                try {
+                const cols = parseCSVLine(lines[i]);
+                // 最小限のカラム数チェック (旧形式は18列、新形式は36列)
+                if (cols.length < 18) continue; 
+
+                const dateKey = cols[0];
+                // 日付形式チェック (YYYY-MM-DD)
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) continue;
+
+                // 各カラムの取得
+                const typeLabel = cols[2];
+                const startTime = cols[3];
+                const endTime = cols[4];
+                const patternLabel = cols[5];
+                const note = cols[6];
+                const isSiteStart = cols[7] === '〇';
+                const isSiteEnd = cols[8] === '〇';
+                const isHolidayWork = cols[9] === '〇';
+                const holidayWorkTypeLabel = cols[10];
+                const vehicle1 = cols[11];
+                const vehicle2 = cols[12];
+                const vehicle3 = cols[13];
+                const vehicle4 = cols[14];
+                const vehicle5 = cols[15];
+
+                let transportations = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
+                let expenses = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
+
+                // 新フォーマット判定 (詳細列がある場合)
+                if (cols.length >= 36) {
+                    // 列数から行数を推測、あるいは56列以上なら10行版として扱う
+                    const isTenRows = cols.length >= 56;
+                    const rowsToRead = isTenRows ? 10 : 5;
+                    
+                    // 交通費詳細の読み込み
+                    for (let j = 0; j < rowsToRead; j++) {
+                    transportations[j] = {
+                        name: cols[16 + j * 2] || '',
+                        cost: cols[17 + j * 2] || ''
+                    };
+                    }
+                    
+                    // 立替費詳細の読み込み
+                    const expenseStartIndex = 16 + (rowsToRead * 2);
+                    for (let j = 0; j < rowsToRead; j++) {
+                    expenses[j] = {
+                        name: cols[expenseStartIndex + j * 2] || '',
+                        cost: cols[expenseStartIndex + 1 + j * 2] || ''
+                    };
+                    }
+                } else {
+                    // 旧フォーマット (合計のみ) の場合のフォールバック処理
+                    const totalTransport = parseInt(cols[16], 10) || 0;
+                    const totalExpense = parseInt(cols[17], 10) || 0;
+                    if (totalTransport > 0) {
+                    transportations[0] = { name: 'CSV取込', cost: totalTransport };
+                    }
+                    if (totalExpense > 0) {
+                    expenses[0] = { name: 'CSV取込', cost: totalExpense };
+                    }
+                }
+
+                // データ構築
+                const entry = {
+                    startTime,
+                    endTime,
+                    type: getTypeIdByLabel(typeLabel),
+                    workPatternId: getPatternIdByLabel(patternLabel),
+                    note,
+                    isSiteStart,
+                    isSiteEnd,
+                    isHolidayWork,
+                    holidayWorkType: getHolidayTypeIdByLabel(holidayWorkTypeLabel),
+                    vehicles: [vehicle1, vehicle2, vehicle3, vehicle4, vehicle5].map(v => v || ''),
+                    transportations,
+                    expenses,
+                };
+
+                newWorkData[dateKey] = entry;
+                importCount++;
+                } catch (err) {
+                console.error('Import error at line ' + i, err);
+                }
+            }
+
+            setWorkData(newWorkData);
+            showToast(`${importCount}件のデータをインポートしました。`);
+            };
+            reader.readAsText(file);
+            // ファイル入力をリセット（同じファイルを再度選択できるように）
+            event.target.value = '';
+        };
+
+        const handleImportClick = () => {
+            fileInputRef.current.click();
+        };
+
+        // 車両マスタ操作
+        const startAddVehicle = (category) => {
+            setAddingVehicleCategory(category);
+            setNewVehicleName('');
+        };
+
+        const cancelAddVehicle = () => {
+            setAddingVehicleCategory(null);
+            setNewVehicleName('');
+        };
+
+        const confirmAddVehicle = () => {
+            if (newVehicleName && addingVehicleCategory) {
+            setVehicleMaster(prev => ({
+                ...prev,
+                [addingVehicleCategory]: [...prev[addingVehicleCategory], newVehicleName]
+            }));
+            setAddingVehicleCategory(null);
+            setNewVehicleName('');
+            }
+        };
+
+        const confirmRemoveVehicle = () => {
+            if (deleteConfirmation) {
+            const { category, name } = deleteConfirmation;
+            setVehicleMaster(prev => ({
+                ...prev,
+                [category]: prev[category].filter(v => v !== name)
+            }));
+            setDeleteConfirmation(null);
+            }
+        };
+
+        // --- 集計ロジック ---
+        const calculateStats = (data, targetYear, targetMonth = null) => {
+            let totalMinutes = 0;
+            let totalOvertimeMinutes = 0;
+            let totalHolidayWorkMinutes = 0;
+            let totalHolidayWorkDays = 0;
+            let total8Overnight = 0;
+            let total8PostNight = 0;
+            let totalTempOvernight = 0; // 追加
+            let totalTransportCost = 0;
+            let totalExpenseCost = 0;
+            const counts = {};
+            const vehicleCounts = {};
+            WORK_TYPES.forEach(t => counts[t.id] = 0);
+
+            // 期間の開始日と終了日を設定
+            let startDate, endDate;
+            if (targetMonth !== null) {
+            startDate = new Date(targetYear, targetMonth, 1);
+            endDate = new Date(targetYear, targetMonth + 1, 0);
+            } else {
+            startDate = new Date(targetYear, 0, 1);
+            endDate = new Date(targetYear, 11, 31);
+            }
+
+            // 日付ループで全日チェック
+            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const y = d.getFullYear();
+            const m = d.getMonth() + 1;
+            const day = d.getDate();
+            const dateKey = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+            let entry = data[dateKey];
+
+            // データがない場合、祝日判定を行う
+            if (!entry) {
+                const { isHoliday } = getHolidayInfo(y, m, day);
+                // 会社休判定 (1/2, 1/3, 12/29-31)
+                const isCompanyHoliday = (m === 1 && (day === 2 || day === 3)) || (m === 12 && (day >= 29 && day <= 31));
+                
+                if (isCompanyHoliday) {
+                    entry = { type: 'company_holiday', isHolidayWork: false };
+                }
+                // 日曜日(dayOfWeek === 0)と重なる場合は自動登録しない (d.getDay() !== 0)
+                else if (isHoliday && d.getDay() !== 0) {
+                // 仮想的な祝日エントリ
+                entry = { type: 'national_holiday', isHolidayWork: false };
+                }
+            }
+
+            if (entry) {
+                if (counts[entry.type] !== undefined) {
+                counts[entry.type]++;
+                }
+
+                // 8泊り・8明けタイプ自体のカウント（オプションではなくメイン選択の場合）
+                if (entry.type === '8overnight') {
+                    total8Overnight++;
+                }
+                if (entry.type === '8post_night') {
+                    total8PostNight++;
+                }
+
+                if (entry.isTempOvernight) {
+                    totalTempOvernight++;
+                }
+
+                if (entry.isHolidayWork) {
+                // 8泊り・8明けボタンで登録された場合は休日出勤回数に含めない
+                if (entry.type !== '8overnight' && entry.type !== '8post_night') {
+                    totalHolidayWorkDays++;
+                }
+
+                // 休日出勤オプションの「泊り」「明け」を集計
+                // メインのタイプが '8overnight'/'8post_night' の場合は重複カウントしないように修正
+                if (entry.holidayWorkType === '8overnight' && entry.type !== '8overnight') {
+                    if (counts['overnight'] !== undefined) counts['overnight']++;
+                }
+                if (entry.holidayWorkType === '8post_night' && entry.type !== '8post_night') {
+                    if (counts['post_night'] !== undefined) counts['post_night']++;
+                }
+
+                if (entry.holidayWorkType === 'business_trip') {
+                    if (counts['business_trip'] !== undefined) counts['business_trip']++;
+                }
+                }
+
+                if (entry.vehicles) {
+                entry.vehicles.forEach(v => {
+                    if (v) vehicleCounts[v] = (vehicleCounts[v] || 0) + 1;
+                });
+                }
+
+                // 交通費集計
+                if (entry.transportations) {
+                    entry.transportations.forEach(t => {
+                        totalTransportCost += parseInt(t.cost, 10) || 0;
+                    });
+                }
+
+                // 立替費集計
+                if (entry.expenses) {
+                    entry.expenses.forEach(e => {
+                        totalExpenseCost += parseInt(e.cost, 10) || 0;
+                    });
+                }
+
+                if (entry.startTime && entry.endTime) {
+                const startMin = timeToMinutes(entry.startTime);
+                const endMin = timeToMinutes(entry.endTime);
+                let diff = endMin - startMin;
+
+                if (diff > 0) {
+                    // 特殊な8系タイプかどうか判定
+                    const isSpecial8Type = entry.type === '8overnight' || entry.type === '8post_night';
+
+                    // 休日出勤として計算する場合の条件: isHolidayWork が true かつ、特殊な8系タイプではない
+                    if (entry.isHolidayWork && !isSpecial8Type) {
+                    if (diff > 360) diff -= 60;
+                    totalHolidayWorkMinutes += diff;
+                    } else if (isWorkType(entry.type) || isSpecial8Type) {
+                    // ここに来るのは「通常勤務」または「特殊な8系タイプ」
+                    totalMinutes += diff;
+
+                    const patternId = entry.workPatternId || 'standard';
+                    const pattern = WORK_PATTERNS.find(p => p.id === patternId) || WORK_PATTERNS[0];
+                    const standardMinutes = pattern.hours * 60;
+                    if (diff > standardMinutes) {
+                        totalOvertimeMinutes += (diff - standardMinutes);
+                    }
+                    }
+                }
+                }
+            }
+            }
+
+            return {
+            totalHours: Math.floor(totalMinutes / 60),
+            totalMinutes: totalMinutes % 60,
+            overtimeHours: Math.floor(totalOvertimeMinutes / 60),
+            overtimeMinutes: totalOvertimeMinutes % 60,
+            holidayWorkHours: Math.floor(totalHolidayWorkMinutes / 60),
+            holidayWorkMinutes: totalHolidayWorkMinutes % 60,
+            holidayWorkDays: totalHolidayWorkDays,
+            total8Overnight,
+            total8PostNight,
+            totalTempOvernight, // 追加
+            totalTransportCost,
+            totalExpenseCost,
+            counts,
+            vehicleCounts
+            };
+        };
+
+        const reportSummary = useMemo(() => {
+            if (summaryTab === 'month') {
+            return calculateStats(workData, reportYear, reportMonth);
+            } else {
+            return calculateStats(workData, reportYear, null);
+            }
+        }, [workData, reportYear, reportMonth, summaryTab]);
+
+        const monthlySummary = useMemo(() => {
+            return calculateStats(workData, year, month);
+        }, [workData, year, month]);
+
+        const substituteStats = useMemo(() => {
+            let totalHolidayWorkMinutes = 0;
+            let usedDays = 0;
+
+            Object.keys(workData).forEach(key => {
+            const [dYear, dMonth, dDay] = key.split('-').map(Number);
+            if (dYear !== reportYear) return;
+
+            const entry = workData[key];
+
+            // 8泊り・8明けボタンからの入力（typeが'8overnight'/'8post_night'）は代休発生に含めない
+            if (entry.isHolidayWork && entry.startTime && entry.endTime && entry.type !== '8overnight' && entry.type !== '8post_night') {
+                const start = timeToMinutes(entry.startTime);
+                const end = timeToMinutes(entry.endTime);
+                let diff = end - start;
+                if (diff > 0) {
+                if (diff > 360) diff -= 60;
+                totalHolidayWorkMinutes += diff;
+                }
+            }
+
+            if (entry.type === 'substitute_holiday') {
+                usedDays++;
+            }
+            });
+
+            const earnedDays = Math.floor(totalHolidayWorkMinutes / 450);
+            const remainingDays = earnedDays + settings.manualSubHolidays - usedDays;
+            const remainderMinutes = totalHolidayWorkMinutes % 450;
+            const holidayWorkHoursTotal = Math.floor(totalHolidayWorkMinutes / 60);
+            const holidayWorkMinutesTotal = totalHolidayWorkMinutes % 60;
+
+            return {
+            totalHolidayWorkMinutes,
+            holidayWorkHoursTotal,
+            holidayWorkMinutesTotal,
+            earnedDays,
+            usedDays,
+            remainingDays,
+            remainderMinutes
+            };
+        }, [workData, reportYear, settings.manualSubHolidays]);
+
+        const paidLeaveStats = useMemo(() => {
+            // 1. 会計年度の特定 (4月始まり)
+            const fiscalYear = reportMonth < 3 ? reportYear - 1 : reportYear;
+
+            // 2. 全ての有休取得日を収集・ソート
+            const usedLeaves = [];
+            Object.keys(workData).forEach(key => {
+            const entry = workData[key];
+            if (entry.type === 'paid_leave') {
+                const [y, m, d] = key.split('-').map(Number);
+                usedLeaves.push(new Date(y, m - 1, d));
+            }
+            });
+            usedLeaves.sort((a, b) => a - b);
+
+            // 3. 付与と消化のシミュレーション
+            // 過去の消化状況を正確に反映するため、最も古い履歴の2年前から付与を生成してシミュレーションする
+            let minYear = fiscalYear - 2;
+            if (usedLeaves.length > 0) {
+            minYear = Math.min(minYear, usedLeaves[0].getFullYear() - 2);
+            }
+
+            // 付与データの生成 (Grant A, Grant B, ...)
+            // 各年度4/1に20日付与、有効期限2年
+            const grants = [];
+            for (let y = minYear; y <= fiscalYear; y++) {
+            grants.push({
+                year: y,
+                start: new Date(y, 3, 1),        // Y年4月1日
+                end: new Date(y + 2, 2, 31),     // Y+2年3月31日
+                remaining: 20
+            });
+            }
+
+            // 履歴に基づいて消化 (期限が近いものから消費)
+            usedLeaves.forEach(date => {
+            // その日付時点で有効な付与を抽出
+            const validGrants = grants.filter(g => 
+                date >= g.start && date <= g.end && g.remaining > 0
+            );
+            
+            // 有効期限が早い順にソート
+            validGrants.sort((a, b) => a.end - b.end);
+            
+            if (validGrants.length > 0) {
+                validGrants[0].remaining--; // 最も古い有効な付与から減らす
+            }
+            });
+
+            // 4. 指定年度における残数の計算
+            // 指定年度(fiscalYear)時点で有効なのは「前年度付与分」と「当年度付与分」の2つ
+            const grantPrev = grants.find(g => g.year === fiscalYear - 1); // Aグループ (残り有効期限1年)
+            const grantCurr = grants.find(g => g.year === fiscalYear);     // Bグループ (残り有効期限2年)
+
+            let remainingPrev = grantPrev ? Math.max(0, grantPrev.remaining) : 0;
+            let remainingCurr = grantCurr ? Math.max(0, grantCurr.remaining) : 0;
+
+            // ▼ 追加ロジック
+            let deduction = settings.manualPaidLeaveDeduction || 0;
+            if (deduction > 0) {
+                // 古い方から引く
+                if (remainingPrev > 0) {
+                    const d = Math.min(remainingPrev, deduction);
+                    remainingPrev -= d;
+                    deduction -= d;
+                    // nextExpiring計算用にgrantオブジェクトも更新しておく（参照渡しなので反映されるはずだが念のため）
+                    if (grantPrev) grantPrev.remaining = remainingPrev;
+                }
+                // まだ残っていれば新しい方から引く
+                if (deduction > 0 && remainingCurr > 0) {
+                    const d = Math.min(remainingCurr, deduction);
+                    remainingCurr -= d;
+                    deduction -= d;
+                    if (grantCurr) grantCurr.remaining = remainingCurr;
+                }
+            }
+            // ▲ 追加ロジック
+
+            const totalRemaining = remainingPrev + remainingCurr;
+
+            // 次に失効する予定の情報を特定
+            let nextExpiring = null;
+            if (remainingPrev > 0) {
+            // Aグループが残っていればそれが次に失効
+            nextExpiring = {
+                date: grantPrev.end,
+                days: remainingPrev
+            };
+            } else if (remainingCurr > 0) {
+            // Aグループが無ければBグループ
+            nextExpiring = {
+                date: grantCurr.end,
+                days: remainingCurr
+            };
+            }
+
+            return {
+            totalRemaining,
+            nextExpiring,
+            fiscalYear
+            };
+        }, [workData, reportYear, reportMonth, settings.manualPaidLeaveDeduction]);
+
+        const creativeLeaveStats = useMemo(() => {
+            // 1月~3月は前年度扱いにする
+            const fiscalYear = reportMonth < 3 ? reportYear - 1 : reportYear;
+            const termStart = new Date(fiscalYear, 3, 1);
+            const termEnd = new Date(fiscalYear + 1, 2, 31);
+
+            const grantAmount = 5;
+            let usedDays = 0;
+            Object.keys(workData).forEach(key => {
+            const entry = workData[key];
+            if (entry.type === 'creative_leave') {
+                const [y, m, d] = key.split('-').map(Number);
+                const entryDate = new Date(y, m - 1, d);
+                if (entryDate >= termStart && entryDate <= termEnd) {
+                usedDays++;
+                }
+            }
+            });
+
+            const deduction = settings.manualCreativeLeaveDeduction || 0;
+            const remainingDays = Math.max(0, grantAmount - usedDays - deduction);
+
+            return {
+            usedDays,
+            remainingDays,
+            termStart,
+            termEnd,
+            fiscalYear
+            };
+        }, [workData, reportYear, reportMonth, settings.manualCreativeLeaveDeduction]);
+
+        const medicalLeaveStats = useMemo(() => {
+            const fiscalYear = reportMonth < 3 ? reportYear - 1 : reportYear;
+            const termStart = new Date(fiscalYear, 3, 1);
+            const termEnd = new Date(fiscalYear + 1, 2, 31);
+
+            let usedDays = 0;
+            Object.keys(workData).forEach(key => {
+            const [dYear, dMonth, dDay] = key.split('-').map(Number);
+            const entry = workData[key];
+
+            if (entry.type === 'medical_leave') {
+                const date = new Date(dYear, dMonth - 1, dDay);
+                if (date >= termStart && date <= termEnd) {
+                usedDays++;
+                }
+            }
+            });
+
+            const grant = settings.medicalLeaveGrant ?? 0;
+            const remaining = grant - usedDays;
+
+            return {
+            usedDays,
+            grant,
+            remaining,
+            fiscalYear,
+            termStart,
+            termEnd
+            };
+        }, [workData, reportYear, reportMonth, settings.medicalLeaveGrant]);
+
+        const nursingLeaveStats = useMemo(() => {
+            const fiscalYear = reportMonth < 3 ? reportYear - 1 : reportYear;
+            const termStart = new Date(fiscalYear, 3, 1);
+            const termEnd = new Date(fiscalYear + 1, 2, 31);
+            const grant = 10;
+            let usedDays = 0;
+
+            Object.keys(workData).forEach(key => {
+            const entry = workData[key];
+            if (entry.type === 'nursing_leave') {
+                const [y, m, d] = key.split('-').map(Number);
+                const date = new Date(y, m - 1, d);
+                if (date >= termStart && date <= termEnd) {
+                usedDays++;
+                }
+            }
+            });
+
+            const deduction = settings.manualNursingLeaveDeduction || 0;
+            const remaining = Math.max(0, grant - usedDays - deduction);
+            return { usedDays, grant, remaining, fiscalYear, termStart, termEnd };
+        }, [workData, reportYear, reportMonth, settings.manualNursingLeaveDeduction]);
+
+        const careLeaveStats = useMemo(() => {
+            const fiscalYear = reportMonth < 3 ? reportYear - 1 : reportYear;
+            const termStart = new Date(fiscalYear, 3, 1);
+            const termEnd = new Date(fiscalYear + 1, 2, 31);
+            const grant = 10;
+            let usedDays = 0;
+
+            Object.keys(workData).forEach(key => {
+            const entry = workData[key];
+            if (entry.type === 'care_leave') {
+                const [y, m, d] = key.split('-').map(Number);
+                const date = new Date(y, m - 1, d);
+                if (date >= termStart && date <= termEnd) {
+                usedDays++;
+                }
+            }
+            });
+
+            const deduction = settings.manualCareLeaveDeduction || 0;
+            const remaining = Math.max(0, grant - usedDays - deduction);
+            return { usedDays, grant, remaining, fiscalYear, termStart, termEnd };
+        }, [workData, reportYear, reportMonth, settings.manualCareLeaveDeduction]);
+
+        const currentReportSummary = reportSummary;
+
+        const getDayColor = (dayIndex, isHoliday) => {
+            if (isHoliday) return 'text-red-500';
+            if (dayIndex === 0) return 'text-red-500';
+            if (dayIndex === 6) return 'text-blue-500';
+            return 'text-gray-700';
+        };
+
+        const getStatusColor = (typeId) => {
+            const type = WORK_TYPES.find(t => t.id === typeId);
+            return type ? type.color : 'bg-gray-50 text-gray-500';
+        };
+
+        const getStatusLabel = (typeId) => {
+            const type = WORK_TYPES.find(t => t.id === typeId);
+            return type ? type.label : '';
+        };
+
+        const renderMonthView = () => {
+            const calendarDays = [];
+            for (let i = 0; i < firstDayOfMonth; i++) {
+            calendarDays.push(<div key={`empty-${i}`} className="min-h-[6rem] h-auto border-r border-b border-gray-100 bg-white/40" />);
+            }
+            for (let day = 1; day <= daysInMonth; day++) {
+            const dateObj = new Date(year, month, day);
+            const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            let entry = workData[dateKey];
+            const dayOfWeek = dateObj.getDay();
+            const isToday = new Date().toDateString() === dateObj.toDateString();
+            const { isHoliday, name: holidayName } = getHolidayInfo(year, month + 1, day);
+
+            // データ未登録でも祝日ならデフォルトで「祝日」扱いとする
+            // 日曜日(dayOfWeek === 0)と重なる場合は自動登録しない
+            const isCompanyHoliday = (month + 1 === 1 && (day === 2 || day === 3)) || (month + 1 === 12 && (day >= 29 && day <= 31));
+            
+            if (!entry) {
+                if (isCompanyHoliday) {
+                    entry = { type: 'company_holiday' };
+                } else if (isHoliday && dayOfWeek !== 0) {
+                    entry = { type: 'national_holiday' };
+                }
+            }
+
+            let hasOvertime = false;
+            if (entry && !entry.isHolidayWork && isWorkType(entry.type) && entry.startTime && entry.endTime) {
+                const startMin = timeToMinutes(entry.startTime);
+                const endMin = timeToMinutes(entry.endTime);
+                const m = endMin - startMin;
+                const patternId = entry.workPatternId || 'standard';
+                const pattern = WORK_PATTERNS.find(p => p.id === patternId) || WORK_PATTERNS[0];
+                if (m > pattern.hours * 60) hasOvertime = true;
+            }
+
+            const hasTransport = entry && entry.transportations && entry.transportations.some(t => t.name || t.cost);
+            const hasVehicle = entry && entry.vehicles && entry.vehicles.some(v => v);
+
+            calendarDays.push(
+                <div
+                key={day}
+                onClick={() => handleDateClick(dateObj)}
+                className={`min-h-[6rem] h-auto border-r border-b border-gray-100 p-1 relative cursor-pointer active:bg-black/5 transition-colors flex flex-col gap-1
+                    ${isToday ? 'bg-yellow-100/50' : isHoliday ? 'bg-red-50/50' : 'bg-white/60'}
+                `}
+                >
+                <div className={`text-xs font-semibold ${getDayColor(dayOfWeek, isHoliday)} flex justify-between items-start`}>
+                    <span className={isToday ? "bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center shrink-0" : ""}>
+                    {day}
+                    </span>
+                    {isHoliday && (
+                    <span className="text-[9px] font-normal text-red-500 text-right leading-tight max-w-[4.5em] truncate ml-1">
+                        {holidayName}
+                    </span>
+                    )}
+                </div>
+
+                {entry && (
+                    <div className="flex flex-col gap-0.5 w-full flex-1">
+                    <div className="flex items-center gap-0.5 justify-center flex-wrap">
+                        {/* bg-white/80 を削除し、各タイプで定義された背景色（bg-blue-100等）が正しく表示されるように修正 */}
+                        <div className={`text-[10px] px-1 rounded border ${getStatusColor(entry.type)} truncate font-medium text-center flex-1 min-w-[2.5em]`}>
+                        {getStatusLabel(entry.type)}
+                        </div>
+                        {entry.workPatternId === 'long' && (
+                        <span className="text-[8px] bg-indigo-600 text-white px-1 py-0.5 rounded-[2px] font-bold leading-none shrink-0">10.5</span>
+                        )}
+                        {entry.workPatternId === 'short' && (
+                        <span className="text-[8px] bg-teal-600 text-white px-1 py-0.5 rounded-[2px] font-bold leading-none shrink-0">5.5</span>
+                        )}
+                    </div>
+                    {(isWorkType(entry.type) || entry.isHolidayWork) && (
+                        <>
+                        {(entry.isSiteStart || entry.isSiteEnd || entry.isHolidayWork || entry.isTempOvernight) && (
+                            <div className="flex justify-center gap-0.5 flex-wrap w-full">
+                            {entry.isHolidayWork && entry.type !== '8overnight' && entry.type !== '8post_night' && <span className="text-[9px] bg-red-600 text-white px-1 rounded-[2px] leading-tight whitespace-nowrap">休出</span>}
+                            {entry.isSiteStart && <span className="text-[9px] bg-slate-600 text-white px-1 rounded-[2px] leading-tight whitespace-nowrap">現出</span>}
+                            {entry.isSiteEnd && <span className="text-[9px] bg-slate-600 text-white px-1 rounded-[2px] leading-tight whitespace-nowrap">現退</span>}
+                            {entry.isTempOvernight && <span className="text-[9px] bg-gray-500 text-white px-1 rounded-[2px] leading-tight whitespace-nowrap">臨泊</span>}
+                            {entry.holidayWorkType === 'business_trip' && <span className="text-[9px] bg-lime-600 text-white px-1 rounded-[2px] leading-tight whitespace-nowrap">出張</span>}
+                            {entry.holidayWorkType === '8overnight' && <span className="text-[9px] bg-blue-600 text-white px-1 rounded-[2px] leading-tight whitespace-nowrap">泊り</span>}
+                            {entry.holidayWorkType === '8post_night' && <span className="text-[9px] bg-blue-600 text-white px-1 rounded-[2px] leading-tight whitespace-nowrap">明け</span>}
+                            </div>
+                        )}
+                        {entry.startTime && (
+                            <div className="text-[10px] text-gray-600 font-mono text-center leading-tight flex justify-center items-center gap-0.5 bg-white/50 rounded w-full overflow-hidden">
+                            <span className="truncate">{entry.startTime}~{entry.endTime}</span>
+                            {hasOvertime && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" title="残業あり"></span>}
+                            </div>
+                        )}
+                        </>
+                    )}
+                    <div className="flex justify-end gap-0.5 mt-auto pt-1">
+                        {hasVehicle && <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" title="車両あり" />}
+                        {hasTransport && <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" title="交通費あり" />}
+                        {entry.note && <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" title="備考あり" />}
+                    </div>
+                    </div>
+                )}
+                </div>
+            );
+            }
+            return (
+            <>
+                <div className="grid grid-cols-7 bg-white/80 border-b text-center text-xs py-2 font-medium text-gray-500 sticky top-0 z-10 shadow-sm backdrop-blur-sm">
+                <div className="text-red-500">日</div>
+                <div>月</div>
+                <div>火</div>
+                <div>水</div>
+                <div>木</div>
+                <div>金</div>
+                <div className="text-blue-500">土</div>
+                </div>
+                <div className="grid grid-cols-7 border-l border-b border-gray-100 pb-20">
+                {calendarDays}
+                </div>
+            </>
+            );
+        };
+
+        const renderWeekView = () => {
+            const weekDays = [];
+            for (let day = 1; day <= daysInMonth; day++) {
+            const d = new Date(year, month, day);
+            weekDays.push(d);
+            }
+
+            return (
+            <div className="flex flex-col space-y-3 p-2 pb-20">
+                {weekDays.map((dateObj, index) => {
+                const y = dateObj.getFullYear();
+                const m = dateObj.getMonth() + 1;
+                const d = dateObj.getDate();
+                const dateKey = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                let entry = workData[dateKey];
+                const dayOfWeek = dateObj.getDay();
+                const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+                const isToday = new Date().toDateString() === dateObj.toDateString();
+                const { isHoliday, name: holidayName } = getHolidayInfo(y, m, d);
+
+                // データ未登録でも祝日ならデフォルトで「祝日」扱いとする
+                // 日曜日(dayOfWeek === 0)と重なる場合は自動登録しない
+                const isCompanyHoliday = (m === 1 && (d === 2 || d === 3)) || (m === 12 && (d >= 29 && d <= 31));
+                
+                if (!entry) {
+                    if (isCompanyHoliday) {
+                        entry = { type: 'company_holiday' };
+                    } else if (isHoliday && dayOfWeek !== 0) {
+                        entry = { type: 'national_holiday' };
+                    }
+                }
+
+                let hasOvertime = false;
+                let overtimeMin = 0;
+                let holidayWorkMin = 0;
+
+                if (entry && entry.startTime && entry.endTime) {
+                    const startMin = timeToMinutes(entry.startTime);
+                    const endMin = timeToMinutes(entry.endTime);
+                    const m = endMin - startMin;
+
+                    // 特殊な8系タイプかどうか判定
+                    const isSpecial8Type = entry.type === '8overnight' || entry.type === '8post_night';
+
+                    if (entry.isHolidayWork && !isSpecial8Type) {
+                    let hw = m;
+                    if (hw > 360) hw -= 60;
+                    holidayWorkMin = hw;
+                    } else if (isWorkType(entry.type) || isSpecial8Type) {
+                    const patternId = entry.workPatternId || 'standard';
+                    const pattern = WORK_PATTERNS.find(p => p.id === patternId) || WORK_PATTERNS[0];
+                    const stdMin = pattern.hours * 60;
+                    if (m > stdMin) {
+                        hasOvertime = true;
+                        overtimeMin = m - stdMin;
+                    }
+                    }
+                }
+
+                const validTransports = entry?.transportations?.filter(t => t.name || t.cost) || [];
+                const validExpenses = entry?.expenses?.filter(e => e.name || e.cost) || [];
+                const totalTransportCost = validTransports.reduce((sum, t) => sum + (parseInt(t.cost, 10) || 0), 0);
+                const totalExpenseCost = validExpenses.reduce((sum, e) => sum + (parseInt(e.cost, 10) || 0), 0);
+                const validVehicles = entry?.vehicles?.filter(Boolean) || [];
+
+                return (
+                    <div
+                    key={index}
+                    onClick={() => handleDateClick(dateObj)}
+                    className={`flex rounded-lg border shadow-sm p-3 transition-all active:scale-[0.99] cursor-pointer bg-white/90
+                        ${isToday ? 'border-yellow-300 ring-1 ring-yellow-200' : 'border-gray-200'}
+                        ${isHoliday ? 'bg-red-50/50' : ''}
+                    `}
+                    >
+                    {/* 日付カラム */}
+                    <div className="flex flex-col items-center justify-start pt-1 w-12 border-r border-gray-200 pr-3 mr-3 gap-1 shrink-0">
+                        <span className={`text-xs font-bold ${getDayColor(dayOfWeek, isHoliday)}`}>
+                        {dayNames[dayOfWeek]}
+                        </span>
+                        <span className={`text-2xl font-bold ${getDayColor(dayOfWeek, isHoliday)}`}>
+                        {d}
+                        </span>
+                        {isHoliday && <div className="text-[10px] text-red-500 font-bold text-center leading-tight break-words w-full">{holidayName}</div>}
+                    </div>
+
+                    {/* 詳細コンテンツカラム - 縦に伸びる設定 */}
+                    <div className="flex-1 flex flex-col gap-2 min-w-0">
+
+                        {entry ? (
+                        <>
+                            <div className="flex flex-wrap items-center gap-2">
+                            <span className={`text-xs px-2 py-0.5 rounded border ${getStatusColor(entry.type)} font-bold`}>
+                                {getStatusLabel(entry.type)}
+                            </span>
+                            
+                            {/* 勤務パターンバッジの追加 */}
+                            {entry.workPatternId === 'long' && (
+                                <span className="text-[10px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-[2px] font-bold">10.5</span>
+                            )}
+                            {entry.workPatternId === 'short' && (
+                                <span className="text-[10px] bg-teal-600 text-white px-1.5 py-0.5 rounded-[2px] font-bold">5.5</span>
+                            )}
+
+                            {entry.isHolidayWork && entry.type !== '8overnight' && entry.type !== '8post_night' && <span className="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded-[2px] font-bold">休出</span>}
+
+                            {(isWorkType(entry.type) || entry.isHolidayWork) && entry.startTime && (
+                                <span className="text-sm font-mono text-gray-700 font-bold">
+                                {entry.startTime} - {entry.endTime}
+                                </span>
+                            )}
+
+                            {hasOvertime && (
+                                <span className="text-red-600 text-xs font-bold flex items-center gap-0.5 ml-1">
+                                <Clock size={10}/> 残業 {Math.floor(overtimeMin/60)}h{overtimeMin%60}m
+                                </span>
+                            )}
+                            {holidayWorkMin > 0 && (
+                                <span className="text-orange-600 text-xs font-bold flex items-center gap-0.5 ml-1">
+                                <HardHat size={10}/> 実働 {Math.floor(holidayWorkMin/60)}h{holidayWorkMin%60}m
+                                </span>
+                            )}
+                            </div>
+
+                            {(isWorkType(entry.type) || entry.isHolidayWork) && (entry.isSiteStart || entry.isSiteEnd || entry.holidayWorkType || entry.isTempOvernight) && (
+                            <div className="flex items-center gap-2 text-xs flex-wrap">
+                                {entry.isSiteStart && <span className="bg-slate-600 text-white px-1.5 rounded-[2px]">現出</span>}
+                                {entry.isSiteEnd && <span className="bg-slate-600 text-white px-1.5 rounded-[2px]">現退</span>}
+                                {entry.isTempOvernight && <span className="bg-gray-500 text-white px-1.5 rounded-[2px]">臨泊</span>}
+                                {entry.holidayWorkType === 'business_trip' && <span className="bg-lime-600 text-white px-1.5 rounded-[2px]">出張</span>}
+                                {entry.holidayWorkType === '8overnight' && <span className="bg-blue-600 text-white px-1.5 rounded-[2px]">泊り</span>}
+                                {entry.holidayWorkType === '8post_night' && <span className="bg-blue-600 text-white px-1.5 rounded-[2px]">明け</span>}
+                            </div>
+                            )}
+
+                            {validVehicles.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-1 text-xs text-green-700 mt-1">
+                                <Truck size={12} className="shrink-0"/>
+                                {validVehicles.map((v, i) => (
+                                    <span key={i} className="bg-green-50 border border-green-200 px-1.5 rounded text-green-800">{v}</span>
+                                ))}
+                                </div>
+                            )}
+
+                            {validTransports.length > 0 && (
+                            <div className="mt-1 bg-orange-50/50 rounded p-2 border border-orange-100">
+                                <div className="flex items-center gap-1 text-xs font-bold text-orange-800 mb-1 border-b border-orange-200 pb-1">
+                                <Train size={12}/> 交通費: <span className="font-mono ml-auto">¥{totalTransportCost.toLocaleString()}</span>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                {validTransports.map((t, i) => (
+                                    <div key={i} className="flex justify-between text-xs text-gray-600 pl-1">
+                                    <span>{t.name}</span>
+                                    <span className="font-mono text-gray-800">¥{Number(t.cost).toLocaleString()}</span>
+                                    </div>
+                                ))}
+                                </div>
+                            </div>
+                            )}
+
+                            {validExpenses.length > 0 && (
+                            <div className="mt-1 bg-cyan-50/50 rounded p-2 border border-cyan-100">
+                                <div className="flex items-center gap-1 text-xs font-bold text-cyan-800 mb-1 border-b border-cyan-200 pb-1">
+                                <Receipt size={12}/> 立替費: <span className="font-mono ml-auto">¥{totalExpenseCost.toLocaleString()}</span>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                {validExpenses.map((e, i) => (
+                                    <div key={i} className="flex justify-between text-xs text-gray-600 pl-1">
+                                    <span>{e.name}</span>
+                                    <span className="font-mono text-gray-800">¥{Number(e.cost).toLocaleString()}</span>
+                                    </div>
+                                ))}
+                                </div>
+                            </div>
+                            )}
+
+                            {entry.note && (
+                            <div className="mt-1 p-2 bg-gray-50 rounded border border-gray-100 text-sm text-gray-700 whitespace-pre-wrap break-words">
+                                <div className="flex items-center gap-1 text-xs text-gray-400 mb-1 border-b border-gray-200/50 pb-1">
+                                <FileText size={10} /> 備考
+                                </div>
+                                {entry.note}
+                            </div>
+                            )}
+                        </>
+                        ) : (
+                        <div className="flex items-center h-full min-h-[3rem]">
+                        </div>
+                        )}
+                    </div>
+                    </div>
+                );
+                })}
+            </div>
+            );
+        };
+
+        // 認証されていない場合はパスコードロック画面を表示
+        if (!isAuthenticated) {
+            return (
+            <>
+                <AnimationStyles />
+                <PasscodeLock 
+                onUnlock={() => {
+                    setIsAuthenticated(true);
+                    const savedDontShow = localStorage.getItem('workTrackerDontShowWelcome') === 'true';
+                    if (!savedDontShow) {
+                        setIsWelcomeModalOpen(true);
+                    }
+                }} 
+                correctPasscode={settings.passcode} 
+                />
+            </>
+            );
+        }
+
+        // 認証後は通常のアプリ画面を表示
+        return (
+            <div className={`flex flex-col h-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans transition-colors duration-300 ${themeColor} relative`}>
+            <AnimationStyles />
+            
+            {/* Toast Notification */}
+            {notification && (
+                <Toast
+                message={notification.message}
+                type={notification.type}
+                onClose={() => setNotification(null)}
+                />
+            )}
+
+            {/* Header */}
+            <header 
+                className="bg-white/90 backdrop-blur-md px-2 pb-2 pt-2 sm:px-4 sm:pb-4 shadow-sm z-20 flex justify-between items-center border-b border-white/20"
+                style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
+            >
+                
+                {/* 左側：ロゴと年月選択 */}
+                <div className="flex items-center gap-2">
+                <h1 className="text-lg font-bold flex items-center text-gray-800 shrink-0">
+                    <CalendarIcon size={20} className="text-blue-600"/>
+                </h1>
+
+                {/* ナビゲーション（年月選択） */}
+                <div className="flex items-center justify-center gap-1 bg-gray-100/80 rounded-lg p-0.5 shrink-0">
+                    <div className="flex items-center gap-1 px-1">
+                    <div className="relative">
+                        <select
+                        value={year}
+                        onChange={handleYearChange}
+                        className="appearance-none bg-transparent font-bold text-sm py-1 pl-1 cursor-pointer outline-none text-gray-700 hover:text-blue-600 transition-colors text-right w-[3.5em]"
+                        >
+                        {yearOptions.map(y => <option key={y} value={y}>{y}年</option>)}
+                        </select>
+                    </div>
+                    <div className="relative">
+                        <select
+                        value={month}
+                        onChange={handleMonthChange}
+                        className="appearance-none bg-transparent font-bold text-sm py-1 pr-1 cursor-pointer outline-none text-gray-700 hover:text-blue-600 transition-colors text-left w-[2.5em]"
+                        >
+                        {Array.from({ length: 12 }, (_, i) => (
+                            <option key={i} value={i}>{i + 1}月</option>
+                        ))}
+                        </select>
+                    </div>
+                    </div>
+                </div>
+                </div>
+
+                {/* 右側：ツールボタン */}
+                <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar ml-2">
+
+                <div className="flex gap-1 mr-1">
+                    <div className="bg-red-50/85 rounded p-1.5 px-2 text-center flex flex-col justify-center border border-red-50/85 min-w-[4.2rem]">
+                        <span className="text-[11px] text-red-500/65 font-bold block leading-none mb-0.5">残業</span>
+                        <span className="text-[15px] font-bold text-red-700/65 leading-none">{monthlySummary.overtimeHours}h {monthlySummary.overtimeMinutes}m</span>
+                    </div>
+                    <div className="bg-orange-50/85 rounded p-1.5 px-2 text-center flex flex-col justify-center border border-orange-50/85 min-w-[4.2rem]">
+                        <span className="text-[11px] text-orange-600/65 font-bold block leading-none mb-0.5">休出</span>
+                        <span className="text-[15px] font-bold text-orange-700/65 leading-none">{monthlySummary.holidayWorkHours}h {monthlySummary.holidayWorkMinutes}m</span>
+                    </div>
+                </div>
+                
+                {/* 表示モード切替 */}
+                <div className="flex bg-gray-100/80 rounded-lg p-0.5 relative shrink-0">
+                    
+                    {/* Config Button (New) */}
+                    <button
+                    onClick={openConfigModal}
+                    className={`p-2 rounded-md transition-all ${isConfigModalOpen ? 'bg-white shadow text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}
+                    title="アプリ設定 (パスワード変更)"
+                    >
+                    <Settings size={22}/>
+                    </button>
+                    
+                    {/* フルスクリーン切り替えボタン */}
+                    <button
+                    onClick={toggleFullscreen}
+                    className={`hidden p-1.5 rounded-md transition-all ${isFullscreen ? 'bg-white shadow text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}
+                    title={isFullscreen ? "全画面解除" : "全画面表示"}
+                    >
+                    {isFullscreen ? <Minimize size={18}/> : <Maximize size={18}/>}
+                    </button>
+                </div>
+                </div>
+            </header>
+
+            {/* Main Content */}
+            <div
+                className="flex-1 overflow-y-auto"
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+            >
+                {viewMode === 'month' ? renderMonthView() : renderWeekView()}
+            </div>
+
+            {/* Monthly Summary Footer */}
+            <div 
+                className="bg-white/95 backdrop-blur-md border-t px-3 pt-3 text-sm shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 relative transition-all duration-300"
+                style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+            >
+                <div className="flex w-full items-stretch h-14">
+                        <button
+                            onClick={() => setViewMode('month')}
+                            className="flex-1 flex flex-col justify-center items-center gap-0.5 transition-all duration-200"
+                        >
+                             <CalendarIcon size={20} strokeWidth={2.5} className={viewMode === 'month' ? "text-[#0EAD00]" : "text-[#89898C]"} />
+                             <span className={`text-[10px] font-bold leading-none ${viewMode === 'month' ? "text-[#111111]" : "text-[#89898C]"}`}>カレンダー</span>
+                        </button>
+                        <button
+                            onClick={() => setViewMode('week')}
+                            className="flex-1 flex flex-col justify-center items-center gap-0.5 transition-all duration-200"
+                        >
+                             <LayoutList size={20} strokeWidth={2.5} className={viewMode === 'week' ? "text-[#0EAD00]" : "text-[#89898C]"} />
+                             <span className={`text-[10px] font-bold leading-none ${viewMode === 'week' ? "text-[#111111]" : "text-[#89898C]"}`}>詳細一覧</span>
+                        </button>
+                <button
+                    type="button"
+                    onClick={() => {
+                    setReportYear(year);
+                    setReportMonth(month);
+                    setIsSummaryModalOpen(true);
+                    }}
+                    className="flex-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-95"
+                >
+                    <BarChart3 size={20} strokeWidth={2.5} className={isSummaryModalOpen ? "text-[#0EAD00]" : "text-[#89898C]"} />
+                    <span className={`text-[10px] font-bold leading-none ${isSummaryModalOpen ? "text-[#111111]" : "text-[#89898C]"}`}>集計</span>
+                </button>
+                </div>
+            </div>
+
+            {/* Input Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
+                <div className={`w-full max-w-sm rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-colors duration-300 ${themeColor}`}>
+                    <div className="p-4 border-b flex justify-between items-center bg-white/50">
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                        {selectedDate && (() => {
+                        const [y, m, d] = selectedDate.split('-');
+                        const { isHoliday, name } = getHolidayInfo(Number(y), Number(m), Number(d));
+                        return (
+                            <div className="flex items-center gap-2">
+                            <span>{y}年{Number(m)}月{Number(d)}日</span>
+                            {isHoliday && <span className="text-xs text-red-500 border border-red-200 bg-red-50/80 px-1.5 py-0.5 rounded">{name}</span>}
+                            </div>
+                        );
+                        })()}
+                    </h3>
+                    <button onClick={() => setIsModalOpen(false)} className="p-1 rounded-full hover:bg-black/5 transition-colors">
+                        <X size={20} />
+                    </button>
+                    </div>
+
+                    <div className="p-4 overflow-y-auto space-y-5 bg-white/30">
+                    {/* Type Selection */}
+                    <div>
+                        <div className="text-[#1A4472] text-center py-2.5 rounded-lg shadow-lg mb-4 font-bold text-sm tracking-wide">
+                            【勤務・休暇】を選択してください
+                        </div>
+                        
+                        {/* 勤務グループ */}
+                        <div className="mb-3 p-2 border border-blue-100 rounded-lg bg-blue-50/20">
+                        <div className="text-[10px] font-bold text-blue-400 mb-1.5 px-1">勤務</div>
+                        <div className="grid grid-cols-3 gap-2">
+                            {WORK_TYPES.filter(type => type.group === 'work').map((type) => (
+                            <button
+                                key={type.id}
+                                onClick={() => {
+                                const updates = { type: type.id, isHolidayWork: false, holidayWorkType: null };
+                                if (type.id === 'overnight') {
+                                    updates.workPatternId = 'short';
+                                    updates.startTime = '17:30';
+                                    updates.endTime = '24:00';
+                                }
+                                else if (type.id === 'post_night') {
+                                    updates.workPatternId = 'long';
+                                    updates.startTime = '00:00';
+                                    updates.endTime = '11:30';
+                                }
+                                else if (type.id === 'work' || type.id === 'business_trip') {
+                                    updates.workPatternId = 'standard';
+                                    updates.startTime = '09:00';
+                                    updates.endTime = '18:00';
+                                }
+                                else if (type.id === '8overnight') {
+                                    updates.workPatternId = 'standard';
+                                    updates.startTime = '15:00';
+                                    updates.endTime = '24:00';
+                                    updates.isHolidayWork = true;
+                                    updates.holidayWorkType = '8overnight';
+                                }
+                                else if (type.id === '8post_night') {
+                                    updates.workPatternId = 'standard';
+                                    updates.startTime = '00:00';
+                                    updates.endTime = '09:00';
+                                    updates.isHolidayWork = true;
+                                    updates.holidayWorkType = '8post_night';
+                                }
+                                setTempEntry({ ...tempEntry, ...updates });
+                                }}
+                                className={`text-sm py-2.5 px-2 rounded-lg border font-medium transition-all relative shadow-sm
+                                ${tempEntry.type === type.id
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-[1.02]'
+                                    : `${type.color} opacity-90 hover:opacity-100 hover:shadow`
+                                }`}
+                            >
+                                {type.label}
+                                {tempEntry.type === type.id && (
+                                <CheckCircle2 size={14} className="absolute top-1 right-1 text-white/50" />
+                                )}
+                            </button>
+                            ))}
+                        </div>
+                        </div>
+
+                        {/* 休暇グループ */}
+                        <div className="p-2 border border-red-100 rounded-lg bg-red-50/20">
+                        <div className="text-[10px] font-bold text-red-400 mb-1.5 px-1">休暇・休日</div>
+                        <div className="grid grid-cols-3 gap-2">
+                            {WORK_TYPES.filter(type => type.group !== 'work' && type.id !== 'company_holiday').map((type) => (
+                            <button
+                                key={type.id}
+                                onClick={() => {
+                                const updates = { type: type.id, isHolidayWork: false, holidayWorkType: null };
+                                setTempEntry({ ...tempEntry, ...updates });
+                                }}
+                                className={`text-sm py-2.5 px-2 rounded-lg border font-medium transition-all relative shadow-sm
+                                ${tempEntry.type === type.id
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-[1.02]'
+                                    : `${type.color} opacity-90 hover:opacity-100 hover:shadow`
+                                }`}
+                            >
+                                {type.label}
+                                {tempEntry.type === type.id && (
+                                <CheckCircle2 size={14} className="absolute top-1 right-1 text-white/50" />
+                                )}
+                            </button>
+                            ))}
+                        </div>
+                        </div>
+                    </div>
+
+                    {['legal_holiday', 'public_holiday', 'national_holiday', 'company_holiday'].includes(tempEntry.type) && (
+                        <div className="animate-in slide-in-from-top-2 duration-200 fade-in bg-[#F15B55] p-3 rounded-lg border border-red-100 shadow-sm">
+                        <label className="block text-xs font-bold text-[#FFFFFF] mb-2 flex items-center justify-center gap-1">
+                            <HardHat size={12}/> 休日出勤時は【登録ボタン】を押してください
+                        </label>
+                        <button
+                            onClick={() => setTempEntry(prev => ({ ...prev, isHolidayWork: !prev.isHolidayWork }))}
+                            className={`w-full py-2.5 text-sm font-bold rounded-md transition-all border flex items-center justify-center gap-2 shadow-sm
+                            ${tempEntry.isHolidayWork
+                                ? 'bg-red-600 text-white border-[#FFFFFF] shadow-md'
+                                : 'bg-white text-red-500 border-red-200 hover:bg-red-50'}`}
+                        >
+                            {tempEntry.isHolidayWork && <CheckCircle2 size={16} />}
+                            登録
+                        </button>
+                        </div>
+                    )}
+
+                    {showWorkInputs && (
+                        <div className="animate-in slide-in-from-top-2 duration-200 fade-in space-y-4">
+
+                        {!tempEntry.isHolidayWork && (
+                            <div className="bg-blue-50/80 p-3 rounded-lg border border-blue-100 shadow-sm">
+                            <label className="block text-xs font-bold text-blue-800 mb-2 flex items-center gap-1">
+                                <Briefcase size={12}/> 勤務パターン（基準時間）
+                            </label>
+                            <select
+                                value={tempEntry.workPatternId}
+                                onChange={(e) => setTempEntry({ ...tempEntry, workPatternId: e.target.value })}
+                                className="w-full p-2 text-sm border border-blue-200 rounded-md bg-white focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                            >
+                                {WORK_PATTERNS.map(pattern => (
+                                <option key={pattern.id} value={pattern.id}>
+                                    {pattern.label}
+                                </option>
+                                ))}
+                            </select>
+                            </div>
+                        )}
+
+                        {tempEntry.isHolidayWork && tempEntry.type !== '8overnight' && tempEntry.type !== '8post_night' && (
+                            <div className="mb-2 animate-in slide-in-from-left-2 duration-200 fade-in">
+                                <div className="border border-gray-300 rounded-lg p-3 pt-4 relative bg-white/50">
+                                    <span className="absolute -top-2 left-2 bg-gray-100 px-2 text-[10px] font-bold text-gray-500 border border-gray-200 rounded">
+                                    勤務
+                                    </span>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {HOLIDAY_OPTIONS.map(opt => (
+                                            <button
+                                            key={opt.id}
+                                            onClick={() => {
+                                                setTempEntry(prev => {
+                                                const isSelecting = prev.holidayWorkType !== opt.id;
+                                                const updates = { holidayWorkType: isSelecting ? opt.id : null };
+
+                                                if (isSelecting) {
+                                                    if (opt.id === '8overnight') {
+                                                    updates.startTime = '17:30';
+                                                    updates.endTime = '24:00';
+                                                    } else if (opt.id === '8post_night') {
+                                                    updates.startTime = '00:00';
+                                                    updates.endTime = '09:00';
+                                                    } else if (opt.id === 'day') {
+                                                    updates.startTime = '09:00';
+                                                    updates.endTime = '18:00';
+                                                    }
+                                                }
+
+                                                return { ...prev, ...updates };
+                                                });
+                                            }}
+                                            className={`w-full py-2 text-xs font-bold rounded-md border transition-all shadow-sm
+                                                ${(() => {
+                                                const isSelected = tempEntry.holidayWorkType === opt.id;
+
+                                                if (opt.id === 'business_trip') {
+                                                    return isSelected
+                                                    ? 'bg-green-600 text-white border-green-600 shadow-md transform scale-[1.02]'
+                                                    : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100';
+                                                } else {
+                                                    return isSelected
+                                                    ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-[1.02]'
+                                                    : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-100';
+                                                }
+                                                })()}
+                                            `}
+                                            >
+                                            {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                            <label className="block text-xs font-bold text-gray-600 mb-1 flex items-center gap-1">
+                                <Clock size={12}/> 開始時間
+                            </label>
+                            <TimeSelect
+                                value={tempEntry.startTime}
+                                onChange={(val) => setTempEntry({ ...tempEntry, startTime: val })}
+                                minuteOptions={MINUTE_OPTIONS_15}
+                            />
+                            </div>
+                            <div>
+                            <label className="block text-xs font-bold text-gray-600 mb-1 flex items-center gap-1">
+                                <Clock size={12}/> 終了時間
+                            </label>
+                            <TimeSelect
+                                value={tempEntry.endTime}
+                                onChange={(val) => setTempEntry({ ...tempEntry, endTime: val })}
+                                minuteOptions={MINUTE_OPTIONS_1}
+                            />
+                            </div>
+                        </div>
+
+                        {tempEntry.isHolidayWork && tempEntry.startTime && tempEntry.endTime && (
+                            (() => {
+                            const start = timeToMinutes(tempEntry.startTime);
+                            const end = timeToMinutes(tempEntry.endTime);
+                            let diff = end - start;
+                            let isDeducted = false;
+                            if (diff > 0) {
+                                if (diff > 360) {
+                                diff -= 60;
+                                isDeducted = true;
+                                }
+                                const h = Math.floor(diff / 60);
+                                const m = diff % 60;
+                                return (
+                                <div className="text-sm font-bold text-orange-600 text-right bg-orange-50/80 p-2 rounded border border-orange-100 mt-2 shadow-sm">
+                                    実働: {h}時間{m}分
+                                    {isDeducted && <span className="text-xs font-normal text-orange-500 ml-2">(休憩1h控除済)</span>}
+                                </div>
+                                );
+                            }
+                            return null;
+                            })()
+                        )}
+
+                        {!tempEntry.isHolidayWork && (
+                            <div className="text-xs text-gray-500 text-right bg-white/50 p-2 rounded">
+                                基準：<span className="font-bold">{currentPattern.hours}時間</span>
+                                <span className="mx-1">/</span>
+                                残業発生：<span className="font-bold text-blue-600">{currentPattern.hours}時間1分〜</span>
+                            </div>
+                        )}
+
+                        <div className="bg-green-50/80 rounded-lg border border-green-200 shadow-sm overflow-hidden transition-all duration-300 mb-4">
+                            <div className="flex justify-between items-center p-3 bg-green-50/50">
+                            <label className="text-xs font-bold text-green-800 flex items-center gap-1">
+                                <Truck size={12}/> 車両選択
+                            </label>
+                            {/* Removed the button here */}
+                            </div>
+                            <div className="p-3 pt-0 grid grid-cols-1 gap-2">
+                            {tempEntry.vehicles.map((v, idx) => {
+                                if (idx > 0 && !tempEntry.vehicles[idx - 1] && !v) return null;
+                                return (
+                                <VehicleSelect
+                                key={idx}
+                                index={idx}
+                                value={v}
+                                onChange={(newVal) => {
+                                    const newVehicles = [...tempEntry.vehicles];
+                                    newVehicles[idx] = newVal;
+                                    setTempEntry({ ...tempEntry, vehicles: newVehicles });
+                                }}
+                                vehicleMaster={vehicleMaster}
+                                />
+                                );
+                            })}
+                            </div>
+                        </div>
+
+                        <div className="bg-orange-50/80 rounded-lg border border-orange-200 shadow-sm overflow-hidden transition-all duration-300">
+                            <div className="p-3 flex justify-between items-center bg-orange-50/50">
+                            <div className="text-xs font-bold text-orange-800 flex items-center gap-1">
+                                <Train size={12}/> 交通費
+                            </div>
+                            <div className="flex items-center gap-2 text-orange-800">
+                                <span className="text-xs font-bold">
+                                    合計{tempEntry.transportations.reduce((sum, t) => sum + (parseInt(t.cost, 10) || 0), 0).toLocaleString()}円
+                                </span>
+                            </div>
+                            </div>
+
+                            <div className="p-3 pt-0 border-t border-orange-200/30">
+                                <div className="space-y-2 mt-2">
+                                {(() => {
+                                    let firstEmptyIndex = tempEntry.transportations.findIndex(t => !t.name && !t.cost);
+                                    if (firstEmptyIndex === -1) firstEmptyIndex = 10;
+                                    const visibleLimit = Math.min(firstEmptyIndex + 1, 10);
+                                    
+                                    return tempEntry.transportations.slice(0, visibleLimit).map((trans, index) => (
+                                    <div key={index} className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder={`交通機関 ${index + 1}`}
+                                        value={trans.name}
+                                        onChange={(e) => {
+                                        const newTrans = [...tempEntry.transportations];
+                                        newTrans[index] = { ...newTrans[index], name: e.target.value };
+                                        setTempEntry({ ...tempEntry, transportations: newTrans });
+                                        }}
+                                        className="flex-[2] w-full min-w-0 p-2 text-sm border border-orange-200 rounded-md focus:ring-2 focus:ring-orange-500 outline-none shadow-sm"
+                                    />
+                                    <input
+                                        type="number"
+                                        placeholder="金額"
+                                        value={trans.cost}
+                                        onChange={(e) => {
+                                        const newTrans = [...tempEntry.transportations];
+                                        newTrans[index] = { ...newTrans[index], cost: e.target.value };
+                                        setTempEntry({ ...tempEntry, transportations: newTrans });
+                                        }}
+                                        className="flex-1 w-full min-w-0 p-2 text-sm border border-orange-200 rounded-md focus:ring-2 focus:ring-orange-500 outline-none text-right shadow-sm"
+                                    />
+                                    </div>
+                                    ));
+                                })()}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-cyan-50/80 rounded-lg border border-cyan-200 shadow-sm overflow-hidden transition-all duration-300 mt-4">
+                            <div className="p-3 flex justify-between items-center bg-cyan-50/50">
+                            <div className="text-xs font-bold text-cyan-800 flex items-center gap-1">
+                                <Receipt size={12}/> 立替費
+                            </div>
+                            <div className="flex items-center gap-2 text-cyan-800">
+                                <span className="text-xs font-bold">
+                                    合計{tempEntry.expenses.reduce((sum, t) => sum + (parseInt(t.cost, 10) || 0), 0).toLocaleString()}円
+                                </span>
+                            </div>
+                            </div>
+
+                            <div className="p-3 pt-0 border-t border-cyan-200/30">
+                                <div className="space-y-2 mt-2">
+                                {(() => {
+                                    let firstEmptyIndex = tempEntry.expenses.findIndex(e => !e.name && !e.cost);
+                                    if (firstEmptyIndex === -1) firstEmptyIndex = 10;
+                                    const visibleLimit = Math.min(firstEmptyIndex + 1, 10);
+
+                                    return tempEntry.expenses.slice(0, visibleLimit).map((exp, index) => (
+                                    <div key={index} className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder={`立替内容 ${index + 1}`}
+                                        value={exp.name}
+                                        onChange={(e) => {
+                                        const newExps = [...tempEntry.expenses];
+                                        newExps[index] = { ...newExps[index], name: e.target.value };
+                                        setTempEntry({ ...tempEntry, expenses: newExps });
+                                        }}
+                                        className="flex-[2] w-full min-w-0 p-2 text-sm border border-cyan-200 rounded-md focus:ring-2 focus:ring-cyan-500 outline-none shadow-sm"
+                                    />
+                                    <input
+                                        type="number"
+                                        placeholder="金額"
+                                        value={exp.cost}
+                                        onChange={(e) => {
+                                        const newExps = [...tempEntry.expenses];
+                                        newExps[index] = { ...newExps[index], cost: e.target.value };
+                                        setTempEntry({ ...tempEntry, expenses: newExps });
+                                        }}
+                                        className="flex-1 w-full min-w-0 p-2 text-sm border border-cyan-200 rounded-md focus:ring-2 focus:ring-cyan-500 outline-none text-right shadow-sm"
+                                    />
+                                    </div>
+                                    ));
+                                })()}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-gray-50/80 p-3 rounded-lg border border-gray-200 shadow-sm mb-4">
+                            <label className="block text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
+                            <MapPin size={12}/> 出退勤状況 / 予定外宿泊
+                            </label>
+                            <div className="flex gap-3">
+                            <button
+                                onClick={() => setTempEntry(prev => ({ ...prev, isSiteStart: !prev.isSiteStart }))}
+                                className={`flex-1 py-2 text-sm font-bold rounded-md transition-all border flex items-center justify-center gap-2 shadow-sm
+                                ${tempEntry.isSiteStart
+                                    ? 'bg-slate-700/50 text-white border-slate-700/50 shadow-md'
+                                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'}`}
+                            >
+                                {tempEntry.isSiteStart && <CheckCircle2 size={14} />}
+                                現出
+                            </button>
+                            <button
+                                onClick={() => setTempEntry(prev => ({ ...prev, isSiteEnd: !prev.isSiteEnd }))}
+                                className={`flex-1 py-2 text-sm font-bold rounded-md transition-all border flex items-center justify-center gap-2 shadow-sm
+                                ${tempEntry.isSiteEnd
+                                    ? 'bg-slate-700/50 text-white border-slate-700/50 shadow-md'
+                                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'}`}
+                            >
+                                {tempEntry.isSiteEnd && <CheckCircle2 size={14} />}
+                                現退
+                            </button>
+                            {/* ここに追加 */}
+                            <button
+                                onClick={() => setTempEntry(prev => ({ ...prev, isTempOvernight: !prev.isTempOvernight }))}
+                                className={`flex-1 py-2 text-sm font-bold rounded-md transition-all border flex items-center justify-center gap-2 shadow-sm
+                                ${tempEntry.isTempOvernight
+                                    ? 'bg-slate-700/50 text-white border-slate-700/50 shadow-md'
+                                    : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'}`}
+                            >
+                                {tempEntry.isTempOvernight && <CheckCircle2 size={14} />}
+                                臨泊
+                            </button>
+                            </div>
+                        </div>
+                        </div>
+                    )}
+
+                    {tempEntry.type && (
+                    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <label className="block text-xs font-bold text-gray-600 mb-1 flex items-center gap-1 mt-4">
+                        <FileText size={12}/> 業務内容・備考
+                        </label>
+                        <textarea
+                        value={tempEntry.note}
+                        onChange={(e) => setTempEntry({ ...tempEntry, note: e.target.value })}
+                        placeholder="メモを入力..."
+                        className="w-full p-2.5 border rounded-lg bg-white/80 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none min-h-[80px] shadow-sm"
+                        />
+                    </div>
+                    )}
+                    </div>
+
+                    <div className="p-4 border-t bg-white/50 flex gap-3">
+                    <button
+                        onClick={handleDelete}
+                        className="p-3 text-red-500 bg-white border border-red-200 rounded-lg hover:bg-red-50 flex items-center justify-center transition-colors shadow-sm"
+                        title="この日の記録を削除"
+                    >
+                        <Trash2 size={20} />
+                    </button>
+                    <button
+                        onClick={handleSave}
+                        className="flex-1 bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 shadow-md active:transform active:scale-95 transition-all flex justify-center items-center gap-2"
+                    >
+                        <Save size={18} />
+                        保存する
+                    </button>
+                    </div>
+                </div>
+                </div>
+            )}
+
+            {/* Vehicle Settings Modal */}
+            {isVehicleSettingsOpen && (
+                <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center animation-fade-in p-4">
+                <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                    <div className="p-4 border-b flex justify-between items-center bg-green-50">
+                    <h3 className="font-bold text-lg flex items-center gap-2 text-green-800">
+                        <Truck size={20} />
+                        車両マスタ編集
+                    </h3>
+                    <button onClick={() => setIsVehicleSettingsOpen(false)} className="p-1 rounded-full hover:bg-green-200">
+                        <X size={20} />
+                    </button>
+                    </div>
+                    <div className="p-4 overflow-y-auto">
+                    {Object.entries(vehicleMaster).map(([category, items]) => (
+                        <div key={category} className="mb-4 border-b pb-4 last:border-0 last:pb-0">
+                        <div className="flex justify-between items-center mb-2">
+                            <h4 className="font-bold text-sm text-gray-700">{category}</h4>
+                            {addingVehicleCategory !== category && (
+                                <button
+                                onClick={() => startAddVehicle(category)}
+                                className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200 flex items-center gap-1"
+                                >
+                                <Plus size={12}/> 追加
+                                </button>
+                            )}
+                        </div>
+
+                        {addingVehicleCategory === category && (
+                            <div className="mb-3 flex gap-2 animate-in fade-in slide-in-from-left-2">
+                                <input
+                                    type="text"
+                                    className="flex-1 border rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-green-500"
+                                    placeholder="車両名..."
+                                    value={newVehicleName}
+                                    onChange={(e) => setNewVehicleName(e.target.value)}
+                                    autoFocus
+                                />
+                                <button onClick={confirmAddVehicle} className="bg-green-600 text-white px-3 py-1 rounded text-sm font-bold">登録</button>
+                                <button onClick={cancelAddVehicle} className="bg-gray-200 text-gray-600 px-2 py-1 rounded text-sm">Cancel</button>
+                            </div>
+                        )}
+
+                        <div className="flex flex-wrap gap-2">
+                            {items.map(item => (
+                            <span key={item} className="text-xs bg-gray-100 border border-gray-200 px-2 py-1 rounded flex items-center gap-1">
+                                {item}
+                                <button
+                                    onClick={() => setDeleteConfirmation({ category, name: item })}
+                                    className="text-gray-400 hover:text-red-500"
+                                >
+                                <Minus size={12}/>
+                                </button>
+                            </span>
+                            ))}
+                            {items.length === 0 && <span className="text-xs text-gray-400">登録なし</span>}
+                        </div>
+                        </div>
+                    ))}
+                    </div>
+                    <div className="p-3 bg-gray-50 border-t text-center">
+                    <button onClick={() => setIsVehicleSettingsOpen(false)} className="bg-white border border-gray-300 text-sm font-bold px-4 py-2 rounded-lg">
+                        閉じる
+                    </button>
+                    </div>
+                </div>
+                </div>
+            )}
+
+            {/* Summary Modal */}
+            {isSummaryModalOpen && (
+                <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center animation-fade-in p-4">
+                <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    <div className="p-4 border-b bg-gray-800 text-white">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-lg flex items-center gap-2">
+                        <BarChart3 size={20} className="text-blue-300"/>
+                        実績集計レポート
+                        </h3>
+                        <button onClick={() => setIsSummaryModalOpen(false)} className="p-1 rounded-full hover:bg-gray-700 text-white/80 hover:text-white">
+                        <X size={20} />
+                        </button>
+                    </div>
+
+                    {/* Tab Switcher */}
+                    <div className="flex bg-gray-700 p-1 rounded-lg">
+                        <button
+                        onClick={() => setSummaryTab('month')}
+                        className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-all ${summaryTab === 'month' ? 'bg-gray-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                        >
+                        月間 ({month + 1}月)
+                        </button>
+                        <button
+                        onClick={() => setSummaryTab('year')}
+                        className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-all ${summaryTab === 'year' ? 'bg-gray-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                        >
+                        年間 ({year}年)
+                        </button>
+                    </div>
+                    </div>
+
+                    <div className="p-0 overflow-y-auto bg-white flex-1">
+
+                    {/* Main Stats (Moved here) */}
+                    <div className="p-4 bg-gray-50">
+                        <div className="bg-white p-3 rounded-lg border shadow-sm mb-4">
+                            <div className="flex items-center gap-2 mb-2 border-b border-gray-100 pb-2">
+                                <Briefcase size={16} className="text-blue-600"/>
+                                <h4 className="font-bold text-blue-800 text-sm">勤務</h4>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="text-center">
+                                    <div className="text-xs text-gray-500 font-bold mb-1">稼働時間</div>
+                                    <div className="text-xl font-bold text-gray-800 font-mono">
+                                    {currentReportSummary.totalHours}<span className="text-xs ml-0.5">h</span>
+                                    {String(currentReportSummary.totalMinutes).padStart(2,'0')}<span className="text-xs ml-0.5">m</span>
+                                    </div>
+                                </div>
+                                <div className="text-center border-l border-gray-100">
+                                    <div className="text-xs text-red-500 font-bold mb-1">残業時間</div>
+                                    <div className="text-xl font-bold text-red-700 font-mono">
+                                    {currentReportSummary.overtimeHours}<span className="text-xs ml-0.5">h</span>
+                                    {String(currentReportSummary.overtimeMinutes).padStart(2,'0')}<span className="text-xs ml-0.5">m</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="bg-white p-3 rounded-lg border shadow-sm border-orange-100">
+                            <div className="flex items-center gap-2 mb-2 border-b border-orange-100 pb-2">
+                                <HardHat size={16} className="text-orange-600"/>
+                                <h4 className="font-bold text-orange-800 text-sm">休出</h4>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="text-center">
+                                    <div className="text-xs text-purple-600 font-bold mb-1">日数</div>
+                                    <div className="text-xl font-bold text-purple-700 font-mono">
+                                    {currentReportSummary.holidayWorkDays}<span className="text-xs ml-0.5">日</span>
+                                    </div>
+                                </div>
+                                <div className="text-center border-l border-orange-100">
+                                    <div className="text-xs text-orange-600 font-bold mb-1">時間</div>
+                                    <div className="text-xl font-bold text-orange-700 font-mono">
+                                    {currentReportSummary.holidayWorkHours}<span className="text-xs ml-0.5">h</span>
+                                    {String(currentReportSummary.holidayWorkMinutes).padStart(2,'0')}<span className="text-xs ml-0.5">m</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Paid Leave & Creative Leave (Grid Layout) */}
+                    <div className="px-4 py-4 bg-gray-50 grid grid-cols-2 gap-3">
+                        {/* Paid Leave Management (Green Section) */}
+                        <div className="p-3 bg-green-50/50 rounded-lg border border-green-100 shadow-sm">
+                            <div className="flex items-center gap-2 mb-2">
+                            <Palmtree size={16} className="text-green-600 shrink-0"/>
+                            <h4 className="font-bold text-green-800 text-sm truncate">有休</h4>
+                            </div>
+
+                            <div className="flex items-center justify-between bg-white p-2 rounded-lg border border-green-100 shadow-sm mb-2">
+                            <div className="text-center w-full">
+                                <div className="text-sm text-gray-500 mb-1 font-medium">残り</div>
+                                <div className="font-bold text-green-700 text-2xl">
+                                {paidLeaveStats.totalRemaining}<span className="text-sm ml-1">日</span>
+                                </div>
+                            </div>
+                            </div>
+
+                            <div className="text-[10px] text-gray-500 text-right space-y-0.5 leading-tight">
+                            {paidLeaveStats.nextExpiring && (
+                                <div>
+                                ※次消滅: {paidLeaveStats.nextExpiring.date.getFullYear()}/{paidLeaveStats.nextExpiring.date.getMonth() + 1}/{paidLeaveStats.nextExpiring.date.getDate()} ({paidLeaveStats.nextExpiring.days}日)
+                                </div>
+                            )}
+                            <div>
+                                ※{paidLeaveStats.fiscalYear}年度分
+                            </div>
+                            </div>
+                        </div>
+
+                        {/* Creative Leave Management (Purple Section) */}
+                        <div className="p-3 bg-purple-50/50 rounded-lg border border-purple-100 shadow-sm">
+                            <div className="flex items-center gap-2 mb-2">
+                            <Smile size={16} className="text-purple-600 shrink-0"/>
+                            <h4 className="font-bold text-purple-800 text-sm truncate">クリ休</h4>
+                            </div>
+
+                            <div className="flex items-center justify-between bg-white p-2 rounded-lg border border-purple-100 shadow-sm mb-2">
+                            <div className="text-center w-full">
+                                <div className="text-sm text-purple-800 mb-1 font-bold">残り</div>
+                                <div className="font-bold text-purple-900 text-2xl">
+                                {creativeLeaveStats.remainingDays}<span className="text-sm ml-1">日</span>
+                                </div>
+                            </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Substitute Holiday & Medical Leave (Grid Layout) */}
+                    <div className="px-4 py-4 bg-gray-50 grid grid-cols-2 gap-3">
+                        {/* Substitute Holiday Management (Blue Section) */}
+                        <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100 shadow-sm">
+                            <div className="flex items-center gap-2 mb-2">
+                            <Settings size={16} className="text-blue-600 shrink-0"/>
+                            <h4 className="font-bold text-blue-800 text-sm truncate">代休</h4>
+                            </div>
+
+                            <div className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100 shadow-sm mb-2">
+                                <div className="text-center w-full">
+                                    <div className="text-sm text-blue-800 mb-1 font-bold">残り</div>
+                                    <div className="font-bold text-blue-900 text-2xl">
+                                    {substituteStats.remainingDays}<span className="text-sm ml-1">日</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="text-[10px] text-gray-500 text-right leading-tight">
+                            (あと{450 - substituteStats.remainderMinutes}分で+1日)
+                            </div>
+                        </div>
+
+                        {/* Medical Leave Management (Rose Section) */}
+                        <div className="p-3 bg-rose-50/50 rounded-lg border border-rose-100 shadow-sm">
+                            <div className="flex items-center gap-2 mb-2">
+                            <Stethoscope size={16} className="text-rose-600 shrink-0"/>
+                            <h4 className="font-bold text-rose-800 text-sm truncate">積立休暇</h4>
+                            </div>
+
+                            <div className="flex items-center justify-between bg-white p-2 rounded-lg border border-rose-100 shadow-sm mb-2">
+                                <div className="text-center w-full">
+                                    <div className="text-sm text-rose-800 mb-1 font-bold">残り</div>
+                                    <div className="font-bold text-rose-900 text-2xl">
+                                    {medicalLeaveStats.remaining}<span className="text-sm ml-1">日</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Nursing & Care Leave Management */}
+                    <div className="px-4 py-4 bg-gray-50 grid grid-cols-2 gap-3">
+                        {/* Nursing Leave Management (Pink Section) */}
+                        <div className="p-3 bg-pink-50/50 rounded-lg border border-pink-100 shadow-sm">
+                            <div className="flex items-center gap-2 mb-2">
+                            <Stethoscope size={16} className="text-pink-600 shrink-0"/>
+                            <h4 className="font-bold text-pink-800 text-sm truncate">看護休</h4>
+                            </div>
+
+                            <div className="flex items-center justify-between bg-white p-2 rounded-lg border border-pink-100 shadow-sm mb-2">
+                                <div className="text-center w-full">
+                                    <div className="text-sm text-pink-800 mb-1 font-bold">残り</div>
+                                    <div className="font-bold text-pink-700 text-2xl">
+                                    {nursingLeaveStats.remaining}<span className="text-sm ml-1">日</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Care Leave Management (Orange Section) */}
+                        <div className="p-3 bg-orange-50/50 rounded-lg border border-orange-100 shadow-sm">
+                            <div className="flex items-center gap-2 mb-2">
+                            <Stethoscope size={16} className="text-orange-600 shrink-0"/>
+                            <h4 className="font-bold text-orange-800 text-sm truncate">介護休</h4>
+                            </div>
+
+                            <div className="flex items-center justify-between bg-white p-2 rounded-lg border border-orange-100 shadow-sm mb-2">
+                                <div className="text-center w-full">
+                                    <div className="text-sm text-orange-800 mb-1 font-bold">残り</div>
+                                    <div className="font-bold text-orange-700 text-2xl">
+                                    {careLeaveStats.remaining}<span className="text-sm ml-1">日</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Counts List (Accordion) */}
+                    <div className="mt-4 px-4">
+                        <button
+                        onClick={() => setIsWorkTypeSummaryOpen(!isWorkTypeSummaryOpen)}
+                        className={`w-full flex justify-between items-center p-4 rounded-xl border transition-all duration-200 shadow-sm group
+                            ${isWorkTypeSummaryOpen
+                            ? 'bg-indigo-50 border-indigo-200 text-indigo-900'
+                            : 'bg-white border-gray-100 hover:border-indigo-200 hover:shadow-md'}`}
+                        >
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-full ${isWorkTypeSummaryOpen ? 'bg-indigo-200 text-indigo-700' : 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100'}`}>
+                            <Briefcase size={20} />
+                            </div>
+                            <div className="text-left">
+                            <div className="font-bold text-sm">勤務・休暇区分内訳</div>
+                            <div className="text-xs opacity-70">各区分の取得回数を確認</div>
+                            </div>
+                        </div>
+                        <div className={`transition-transform duration-300 ${isWorkTypeSummaryOpen ? 'rotate-180' : ''}`}>
+                            <ChevronDown size={20} className={isWorkTypeSummaryOpen ? 'text-indigo-600' : 'text-gray-400'} />
+                        </div>
+                        </button>
+
+                        {isWorkTypeSummaryOpen && (
+                        <div className="mt-2 bg-white rounded-xl border border-indigo-100 shadow-sm overflow-hidden animate-in slide-in-from-top-2 fade-in duration-200">
+                            <div className="divide-y divide-gray-50">
+                            {WORK_TYPES.map(type => {
+                                // 「明け」と「8明け」は集計リストに表示しない
+                                if (type.id === 'post_night' || type.id === '8post_night') return null;
+
+                                let count = currentReportSummary.counts[type.id];
+                                if (type.id === '8overnight') {
+                                    count = currentReportSummary.total8Overnight;
+                                } 
+
+                                const unit = type.id === 'business_trip' ? '日' : '回';
+
+                                return (
+                                <React.Fragment key={type.id}>
+                                    <div className="flex justify-between items-center p-3.5 hover:bg-gray-50 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                        <span className={`w-3 h-3 rounded-full ${type.color.split(' ')[0].replace('bg-', 'bg-')}`}></span>
+                                        <span className="font-medium text-gray-700">{type.label}</span>
+                                        </div>
+                                        <span className={`font-bold ${count > 0 ? 'text-gray-900' : 'text-gray-300'}`}>
+                                        {count} <span className="text-xs font-normal text-gray-400">{unit}</span>
+                                        </span>
+                                    </div>
+                                    {type.id === '8overnight' && (
+                                        <div className="flex justify-between items-center p-3.5 hover:bg-gray-50 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                            <span className="w-3 h-3 rounded-full bg-slate-500/35"></span>
+                                            <span className="font-medium text-gray-700">臨泊</span>
+                                            </div>
+                                            <span className={`font-bold ${currentReportSummary.totalTempOvernight > 0 ? 'text-gray-900' : 'text-gray-300'}`}>
+                                            {currentReportSummary.totalTempOvernight} <span className="text-xs font-normal text-gray-400">回</span>
+                                            </span>
+                                        </div>
+                                    )}
+                                </React.Fragment>
+                                );
+                            })}
+                            </div>
+                        </div>
+                        )}
+                    </div>
+
+                    {/* Vehicle Usage Summary (Accordion) */}
+                    <div className="mt-4 px-4">
+                        <button
+                        onClick={() => setIsVehicleSummaryOpen(!isVehicleSummaryOpen)}
+                        className={`w-full flex justify-between items-center p-4 rounded-xl border transition-all duration-200 shadow-sm group
+                            ${isVehicleSummaryOpen
+                            ? 'bg-green-50 border-green-200 text-green-900'
+                            : 'bg-white border-gray-100 hover:border-green-200 hover:shadow-md'}`}
+                        >
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-full ${isVehicleSummaryOpen ? 'bg-green-200 text-green-700' : 'bg-green-50 text-green-600 group-hover:bg-green-100'}`}>
+                            <Truck size={20} />
+                            </div>
+                            <div className="text-left">
+                            <div className="font-bold text-sm">車両利用状況</div>
+                            <div className="text-xs opacity-70">車両ごとの利用回数を確認</div>
+                            </div>
+                        </div>
+                        <div className={`transition-transform duration-300 ${isVehicleSummaryOpen ? 'rotate-180' : ''}`}>
+                            <ChevronDown size={20} className={isVehicleSummaryOpen ? 'text-green-600' : 'text-gray-400'} />
+                        </div>
+                        </button>
+
+                        {isVehicleSummaryOpen && (
+                        <div className="mt-2 bg-white rounded-xl border border-green-100 shadow-sm overflow-hidden animate-in slide-in-from-top-2 fade-in duration-200">
+                            <div className="p-4 space-y-4">
+                            {Object.entries(vehicleMaster).map(([category, vehicles]) => (
+                                <div key={category} className="space-y-2">
+                                <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">{category}</h5>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {vehicles.map(vehicle => {
+                                    const count = currentReportSummary.vehicleCounts[vehicle] || 0;
+                                    return (
+                                        <div
+                                            key={vehicle}
+                                            className={`flex justify-between items-center p-2.5 rounded-lg border text-sm transition-all duration-200
+                                            ${count > 0
+                                                ? 'bg-white border-green-200 shadow-sm'
+                                                : 'bg-gray-50 border-transparent text-gray-400'}
+                                            `}
+                                        >
+                                            <span className={`truncate mr-2 ${count > 0 ? 'text-green-800 font-bold' : 'text-gray-400 font-normal'}`}>{vehicle}</span>
+                                            <span className={`font-bold ${count > 0 ? 'text-green-600' : 'text-gray-300'}`}>
+                                                {count}
+                                                <span className="text-[10px] font-normal ml-0.5">回</span>
+                                            </span>
+                                        </div>
+                                    );
+                                    })}
+                                </div>
+                                </div>
+                            ))}
+                            </div>
+                        </div>
+                        )}
+                    </div>
+
+                    {/* Cost Summary (Accordion) */}
+                    <div className="mt-4 px-4 pb-8">
+                        <button
+                        onClick={() => setIsCostSummaryOpen(!isCostSummaryOpen)}
+                        className={`w-full flex justify-between items-center p-4 rounded-xl border transition-all duration-200 shadow-sm group
+                            ${isCostSummaryOpen
+                            ? 'bg-amber-50 border-amber-200 text-amber-900'
+                            : 'bg-white border-gray-100 hover:border-amber-200 hover:shadow-md'}`}
+                        >
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-full ${isCostSummaryOpen ? 'bg-amber-200 text-amber-700' : 'bg-amber-50 text-amber-600 group-hover:bg-amber-100'}`}>
+                            <Coins size={20} />
+                            </div>
+                            <div className="text-left">
+                            <div className="font-bold text-sm">経費集計</div>
+                            <div className="text-xs opacity-70">交通費・立替費の合計</div>
+                            </div>
+                        </div>
+                        <div className={`transition-transform duration-300 ${isCostSummaryOpen ? 'rotate-180' : ''}`}>
+                            <ChevronDown size={20} className={isCostSummaryOpen ? 'text-amber-600' : 'text-gray-400'} />
+                        </div>
+                        </button>
+
+                        {isCostSummaryOpen && (
+                        <div className="mt-2 bg-white rounded-xl border border-amber-100 shadow-sm overflow-hidden animate-in slide-in-from-top-2 fade-in duration-200">
+                            <div className="p-4 space-y-3">
+                                <div className="flex justify-between items-center p-3 bg-orange-50/50 rounded-lg border border-orange-100">
+                                    <div className="flex items-center gap-2 text-orange-800">
+                                        <Train size={16}/>
+                                        <span className="font-bold text-sm">交通費</span>
+                                    </div>
+                                    <span className="font-mono font-bold text-lg text-orange-900">
+                                        ¥{currentReportSummary.totalTransportCost.toLocaleString()}
+                                    </span>
+                                </div>
+                                
+                                <div className="flex justify-between items-center p-3 bg-cyan-50/50 rounded-lg border border-cyan-100">
+                                    <div className="flex items-center gap-2 text-cyan-800">
+                                        <Receipt size={16}/>
+                                        <span className="font-bold text-sm">立替費</span>
+                                    </div>
+                                    <span className="font-mono font-bold text-lg text-cyan-900">
+                                        ¥{currentReportSummary.totalExpenseCost.toLocaleString()}
+                                    </span>
+                                </div>
+
+                                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-200 mt-2">
+                                    <div className="flex items-center gap-2 text-gray-700">
+                                        <span className="font-bold text-sm">合計</span>
+                                    </div>
+                                    <span className="font-mono font-bold text-xl text-gray-900 border-b-2 border-amber-300 px-1">
+                                        ¥{(currentReportSummary.totalTransportCost + currentReportSummary.totalExpenseCost).toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        )}
+                    </div>
+
+                    {summaryTab === 'year' && (
+                        <div className="p-4 text-xs text-gray-400 text-center border-t">
+                        ※ {year}年1月1日 〜 {year}年12月31日 の累計データ
+                        </div>
+                    )}
+                    </div>
+
+                    <div className="p-4 bg-gray-50 border-t mt-auto">
+                    <button
+                        onClick={() => setIsSummaryModalOpen(false)}
+                        className="w-full bg-white border border-gray-300 text-gray-700 font-bold py-3 rounded-lg hover:bg-gray-100 shadow-sm"
+                    >
+                        閉じる
+                    </button>
+                    </div>
+                </div>
+                </div>
+            )}
+
+            {/* Config Modal */}
+            {isConfigModalOpen && (
+                <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center animation-fade-in p-4">
+                <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                    <h3 className="font-bold text-lg flex items-center gap-2 text-gray-800">
+                        <Settings size={20} />
+                        アプリ設定
+                    </h3>
+                    <button onClick={() => setIsConfigModalOpen(false)} className="p-1 rounded-full hover:bg-gray-200">
+                        <X size={20} />
+                    </button>
+                    </div>
+                    
+                    <div className="p-6 overflow-y-auto">
+                        {/* パスワード変更セクション */}
+                        <div className="mb-8">
+                            <h4 className="text-sm font-bold text-gray-900 mb-3 border-l-4 border-blue-500 pl-2 flex items-center gap-2">
+                                <Lock size={16} className="text-blue-500"/>
+                                起動パスワード設定
+                            </h4>
+                            <label className="block text-xs font-bold text-gray-500 mb-2">新しいパスワード (4桁数字)</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="\d*"
+                                    maxLength={4}
+                                    value={tempPasscode}
+                                    onChange={(e) => {
+                                        const val = e.target.value.replace(/[^0-9]/g, '');
+                                        setTempPasscode(val);
+                                    }}
+                                    placeholder="4桁の数字"
+                                    className="flex-1 p-3 text-lg font-mono tracking-widest text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                                <button
+                                    onClick={saveConfig}
+                                    disabled={tempPasscode.length !== 4}
+                                    className={`px-4 py-2 rounded-lg font-bold text-sm text-white shadow-sm transition-all
+                                        ${tempPasscode.length === 4 ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300 cursor-not-allowed'}
+                                    `}
+                                >
+                                    変更
+                                </button>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-2">
+                                ※アプリ起動時に入力するパスワードです。
+                            </p>
+                        </div>
+
+                        <hr className="border-gray-100 my-6" />
+
+                        {/* データ管理セクション（初期化） */}
+                        <div className="mb-8">
+                            <h4 className="text-sm font-bold text-gray-900 mb-3 border-l-4 border-red-500 pl-2 flex items-center gap-2">
+                                <Trash2 size={16} className="text-red-500"/>
+                                データ管理
+                            </h4>
+                            
+                            {!isResetViewOpen ? (
+                                <button 
+                                    onClick={() => setIsResetViewOpen(true)}
+                                    className="w-full py-3 border border-red-200 text-red-600 font-bold rounded-lg hover:bg-red-50 flex items-center justify-center gap-2 transition-colors"
+                                >
+                                    <Trash2 size={18} />
+                                    すべてのデータを初期化する
+                                </button>
+                            ) : (
+                                <div className="bg-red-50 p-4 rounded-lg border border-red-100 animate-in fade-in slide-in-from-top-2">
+                                    <p className="text-xs text-red-600 font-bold mb-3 text-center leading-relaxed">
+                                        <AlertCircle size={24} className="mx-auto mb-1"/>
+                                        本当に削除しますか？<br/>
+                                        確認のため現在のパスワードを入力してください。
+                                    </p>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="\d*"
+                                        maxLength={4}
+                                        value={resetPasscode}
+                                        onChange={(e) => {
+                                            const val = e.target.value.replace(/[^0-9]/g, '');
+                                            setResetPasscode(val);
+                                        }}
+                                        placeholder="現在のパスワード"
+                                        className="w-full p-2 text-lg font-mono tracking-widest text-center border border-red-200 rounded-lg focus:ring-2 focus:ring-red-500 outline-none bg-white mb-3"
+                                    />
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => { setIsResetViewOpen(false); setResetPasscode(''); }} 
+                                            className="flex-1 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-bold rounded-lg hover:bg-gray-50"
+                                        >
+                                            キャンセル
+                                        </button>
+                                        <button 
+                                            onClick={handleResetData} 
+                                            disabled={resetPasscode.length !== 4}
+                                            className={`flex-1 py-2 text-white text-sm font-bold rounded-lg shadow-sm transition-colors
+                                                ${resetPasscode.length === 4 ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 cursor-not-allowed'}
+                                            `}
+                                        >
+                                            削除実行
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                            <p className="text-xs text-gray-400 mt-2">
+                                ※登録データ、設定を含むすべての情報を削除し、初期状態に戻します。
+                            </p>
+                        </div>
+
+                        <hr className="border-gray-100 my-6" />
+
+                        {/* テーマ設定セクション */}
+                        <div className="mb-8">
+                            <h4 className="text-sm font-bold text-gray-900 mb-3 border-l-4 border-purple-500 pl-2 flex items-center gap-2">
+                                <Palette size={16} className="text-purple-500"/>
+                                背景色変更
+                            </h4>
+                            <div className="grid grid-cols-4 gap-3">
+                                {THEME_COLORS.map((color) => (
+                                    <button
+                                        key={color.id}
+                                        onClick={() => setThemeColor(color.class)}
+                                        className={`aspect-square rounded-xl ${color.class} border-2 ${themeColor === color.class ? 'border-blue-500 ring-2 ring-blue-200 scale-105' : 'border-transparent hover:scale-105'} transition-all shadow-sm flex items-center justify-center`}
+                                        title={color.label}
+                                    >
+                                        {themeColor === color.class && <CheckCircle2 className="text-blue-600 bg-white rounded-full opacity-80" size={20}/>}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <hr className="border-gray-100 my-6" />
+
+                        {/* データ入出力セクション */}
+                        <div className="mb-4">
+                            <h4 className="text-sm font-bold text-gray-900 mb-3 border-l-4 border-green-500 pl-2 flex items-center gap-2">
+                                <Download size={16} className="text-green-500"/>
+                                データバックアップ
+                            </h4>
+                            <div className="flex flex-col gap-3">
+                                <button
+                                    onClick={handleExportCSV}
+                                    className="w-full py-3 bg-white border border-green-200 text-green-700 font-bold rounded-lg hover:bg-green-50 flex items-center justify-center gap-2 transition-colors shadow-sm"
+                                >
+                                    <Download size={18}/>
+                                    CSV形式でダウンロード
+                                </button>
+                                <button
+                                    onClick={handleImportClick}
+                                    className="w-full py-3 bg-white border border-blue-200 text-blue-700 font-bold rounded-lg hover:bg-blue-50 flex items-center justify-center gap-2 transition-colors shadow-sm"
+                                >
+                                    <Upload size={18}/>
+                                    CSVファイルから復元
+                                </button>
+                                <p className="text-xs text-gray-400 mt-1">
+                                    ※機種変更時などのデータ移行やバックアップにご利用ください。
+                                </p>
+                                
+                                {/* Hidden File Input */}
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    hidden
+                                    accept=".csv"
+                                    onChange={handleFileSelect}
+                                />
+                            </div>
+                        </div>
+
+                        <hr className="border-gray-100 my-6" />
+
+                        {/* 初回設定セクション */}
+                        <div className="mb-8">
+                            <h4 className="text-sm font-bold text-gray-900 mb-3 border-l-4 border-teal-500 pl-2 flex items-center gap-2">
+                                <Sparkles size={16} className="text-teal-500"/>
+                                各休暇 残日数設定（初年度のみ）
+                            </h4>
+                            
+                            <div className="mb-4 p-3 bg-[#FBFF00] border border-gray-200 rounded-lg text-xs leading-relaxed text-gray-700 shadow-sm">
+                                <p className="mb-2 font-bold text-[#FF0000]" style={{ fontSize: '1.3em' }}><span className="text-[#111111] mr-1">①</span>下記に示す６種類の休暇について、本日までに取得済みの日数を入力してください。</p>
+                                <p className="mb-2 font-bold text-[#FF0000]" style={{ fontSize: '1.3em' }}><span className="text-[#111111] mr-1">②</span>翌年度の４月１日に、画面下段にある【休暇日数 調整値リセット】ボタンをタップし、設定をリセットしてください。</p>
+                                <div className="pl-4 text-gray-500 space-y-0.5 mt-1 border-t border-gray-200 pt-1 border-dashed">
+                                    <p>※本設定は、①のアプリ使用開始時及び ②の翌年度の４月１日のみ実施してください</p>
+                                    <p>※来年度４月１日以降の残日数は自動的に表示されます</p>
+                                </div>
+                            </div>
+                            
+                            <div className="flex flex-col gap-4 bg-teal-50/30 p-4 rounded-xl border border-teal-100">
+                                <div>
+                                    <label className="block text-sm font-bold text-green-900 mb-2 bg-green-50 px-2 py-1 rounded border-l-4 border-green-500">有休取得日数</label>
+                                    <div className="relative">
+                                        <select
+                                            value={settings.manualPaidLeaveDeduction || 0}
+                                            onChange={(e) => setSettings({ ...settings, manualPaidLeaveDeduction: parseInt(e.target.value, 10) })}
+                                            className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-green-500 appearance-none"
+                                        >
+                                            <option value="0">調整なし (±0)</option>
+                                            {Array.from({ length: 40 }, (_, i) => i + 1).map(num => (
+                                                <option key={num} value={num}>-{num} 日</option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                                            <ChevronDown size={16} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-gray-100 pt-4">
+                                    <label className="block text-sm font-bold text-purple-900 mb-2 bg-purple-50 px-2 py-1 rounded border-l-4 border-purple-500">クリ休取得日数</label>
+                                    <div className="relative">
+                                        <select
+                                            value={settings.manualCreativeLeaveDeduction || 0}
+                                            onChange={(e) => setSettings({ ...settings, manualCreativeLeaveDeduction: parseInt(e.target.value, 10) })}
+                                            className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-green-500 appearance-none"
+                                        >
+                                            <option value="0">調整なし (±0)</option>
+                                            {Array.from({ length: 5 }, (_, i) => i + 1).map(num => (
+                                                <option key={num} value={num}>-{num} 日</option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                                            <ChevronDown size={16} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-gray-100 pt-4">
+                                    <label className="block text-sm font-bold text-pink-900 mb-2 bg-pink-50 px-2 py-1 rounded border-l-4 border-pink-500">看護休取得日数</label>
+                                    <div className="relative">
+                                        <select
+                                            value={settings.manualNursingLeaveDeduction || 0}
+                                            onChange={(e) => setSettings({ ...settings, manualNursingLeaveDeduction: parseInt(e.target.value, 10) })}
+                                            className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-green-500 appearance-none"
+                                        >
+                                            <option value="0">調整なし (±0)</option>
+                                            {Array.from({ length: 10 }, (_, i) => i + 1).map(num => (
+                                                <option key={num} value={num}>-{num} 日</option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                                            <ChevronDown size={16} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-gray-100 pt-4">
+                                    <label className="block text-sm font-bold text-orange-900 mb-2 bg-orange-50 px-2 py-1 rounded border-l-4 border-orange-500">介護休取得日数</label>
+                                    <div className="relative">
+                                        <select
+                                            value={settings.manualCareLeaveDeduction || 0}
+                                            onChange={(e) => setSettings({ ...settings, manualCareLeaveDeduction: parseInt(e.target.value, 10) })}
+                                            className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-green-500 appearance-none"
+                                        >
+                                            <option value="0">調整なし (±0)</option>
+                                            {Array.from({ length: 10 }, (_, i) => i + 1).map(num => (
+                                                <option key={num} value={num}>-{num} 日</option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                                            <ChevronDown size={16} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-gray-100 pt-4">
+                                    <button
+                                        onClick={handleResetLeaveSettings}
+                                        className="w-full py-3 bg-[#F25568] border border-[#F25568] text-[#FFFFFF] font-bold rounded-lg hover:opacity-80 flex items-center justify-center gap-2 transition-colors shadow-sm"
+                                    >
+                                        <RotateCcw size={18} />
+                                        休暇日数 調整値リセット
+                                    </button>
+                                    <p className="text-xs text-gray-400 mt-2 text-left">
+                                        ※有休・クリ休・看護休・介護休の調整値を「調整なし(±0)」に戻します
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr className="border-gray-100 my-6" />
+
+                        {/* 手動設定セクション */}
+                        <div className="mb-8">
+                            <h4 className="text-sm font-bold text-gray-900 mb-3 border-l-4 border-indigo-500 pl-2 flex items-center gap-2">
+                                <LayoutList size={16} className="text-indigo-500"/>
+                                手動設定 項目
+                            </h4>
+
+                            <div className="mb-4 p-3 bg-[#FFFF00] border border-gray-200 rounded-lg text-xs leading-relaxed text-gray-700 shadow-sm">
+                                <p className="mb-1 font-bold text-center text-[#FF0000]" style={{ fontSize: '1.2em' }}>下記の休暇残日数を設定してください</p>
+                                <p className="text-gray-500 text-left">※残数にズレが発生した場合はこちらの設定から調整してください</p>
+                            </div>
+                            
+                            <div className="flex flex-col gap-4 bg-indigo-50/30 p-4 rounded-xl border border-indigo-100">
+                                <div>
+                                    <label className="block text-sm font-bold text-blue-900 mb-2 bg-blue-50 px-2 py-1 rounded border-l-4 border-blue-500">代休残日数</label>
+                                    <div className="relative">
+                                        <select
+                                            value={settings.manualSubHolidays || 0}
+                                            onChange={(e) => setSettings({ ...settings, manualSubHolidays: parseInt(e.target.value, 10) })}
+                                            className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-green-500 appearance-none"
+                                        >
+                                            <option value="0">調整なし (±0)</option>
+                                            {Array.from({ length: 21 }, (_, i) => i - 10).map(num => {
+                                                if (num === 0) return null;
+                                                return (
+                                                    <option key={num} value={num}>
+                                                        {num > 0 ? `+${num} 日` : `${num} 日`}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                        <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                                            <ChevronDown size={16} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-gray-100 pt-4">
+                                    <label className="block text-sm font-bold text-rose-900 mb-2 bg-rose-50 px-2 py-1 rounded border-l-4 border-rose-500">積立休暇残日数</label>
+                                    <div className="relative">
+                                        <select
+                                            value={settings.medicalLeaveGrant ?? 0}
+                                            onChange={(e) => setSettings({ ...settings, medicalLeaveGrant: parseInt(e.target.value, 10) })}
+                                            className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-green-500 appearance-none"
+                                        >
+                                            {Array.from({ length: 41 }, (_, i) => i).map(num => (
+                                                <option key={num} value={num}>{num} 日</option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                                            <ChevronDown size={16} />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        <p>※翌年度の4/1に積立休暇の残数を再設定してください</p>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div className="p-4 bg-gray-50 border-t flex justify-center">
+                        <button
+                            onClick={() => setIsConfigModalOpen(false)}
+                            className="w-full py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-100 shadow-sm"
+                        >
+                            閉じる
+                        </button>
+                    </div>
+                </div>
+                </div>
+            )}
+
+            {/* Welcome Modal (New Feature) */}
+            {isWelcomeModalOpen && (
+                <div className="fixed inset-0 bg-black/60 z-[120] flex items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
+                    <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl overflow-hidden p-6 flex flex-col items-center">
+                        <div className="mb-4 text-center w-full">
+                            <p className="text-sm font-bold text-gray-700 leading-relaxed text-left">
+                                画面右上の「⚙設定」から、各休暇の日数を設定してください。本日までの「取得日数」または「残日数」を入力することで設定できます。
+                            </p>
+                        </div>
+                        
+                        <label className="flex items-center gap-2 mb-6 cursor-pointer select-none w-full">
+                            <input 
+                                type="checkbox" 
+                                checked={tempDontShow}
+                                onChange={(e) => setTempDontShow(e.target.checked)}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
+                            />
+                            <span className="text-xs font-bold text-gray-500">※次回から表示させない</span>
+                        </label>
+
+                        <button 
+                            onClick={() => {
+                                if (tempDontShow) {
+                                    localStorage.setItem('workTrackerDontShowWelcome', 'true');
+                                }
+                                setIsWelcomeModalOpen(false);
+                            }}
+                            className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+                        >
+                            OK
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmModal
+                isOpen={!!deleteConfirmation}
+                onClose={() => setDeleteConfirmation(null)}
+                onConfirm={confirmRemoveVehicle}
+                title="車両の削除"
+                message={`「${deleteConfirmation?.category}」カテゴリから「${deleteConfirmation?.name}」を削除してもよろしいですか？`}
+            />
+            </div>
+        );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
