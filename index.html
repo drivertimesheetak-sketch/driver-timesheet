@@ -102,6 +102,22 @@
             animation: shake 0.4s ease-in-out;
             }
 
+            /* ページめくり風アニメーション (追加) */
+            @keyframes slideInFromRight {
+                from { transform: translateX(100%); opacity: 0.5; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideInFromLeft {
+                from { transform: translateX(-100%); opacity: 0.5; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            .animate-slide-next {
+                animation: slideInFromRight 0.3s ease-out forwards;
+            }
+            .animate-slide-prev {
+                animation: slideInFromLeft 0.3s ease-out forwards;
+            }
+
             /* スクロールバー非表示 */
             .no-scrollbar::-webkit-scrollbar {
             display: none;
@@ -477,6 +493,9 @@
         const [viewMode, setViewMode] = useState('month');
         const [isFullscreen, setIsFullscreen] = useState(false);
         
+        // アニメーション方向管理用State (追加)
+        const [slideDirection, setSlideDirection] = useState('');
+
         // Notification State
         const [notification, setNotification] = useState(null);
 
@@ -807,11 +826,27 @@
         const weekStartDate = getWeekStartDate(currentDate);
 
         const prevPeriod = () => {
+            setSlideDirection('animate-slide-prev'); // 左から入ってくる
             setCurrentDate(new Date(year, month - 1, 1));
         };
 
         const nextPeriod = () => {
+            setSlideDirection('animate-slide-next'); // 右から入ってくる
             setCurrentDate(new Date(year, month + 1, 1));
+        };
+        
+        // Date Picker Handler (New)
+        const handleNativeMonthChange = (e) => {
+            if (!e.target.value) return;
+            const [y, m] = e.target.value.split('-').map(Number);
+            // 現在の年より未来ならNext、過去ならPrevのアニメーションを入れる
+            const newDate = new Date(y, m - 1, 1);
+            if (newDate > currentDate) {
+                setSlideDirection('animate-slide-next');
+            } else if (newDate < currentDate) {
+                setSlideDirection('animate-slide-prev');
+            }
+            setCurrentDate(newDate);
         };
 
         const onTouchStart = (e) => {
@@ -903,7 +938,12 @@
                 breakTime: undefined
             }
             }));
-            // showToast("保存しました"); // 削除
+            
+            // バイブレーション (追加)
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+            
             setIsModalOpen(false);
         };
 
@@ -2015,7 +2055,7 @@
 
         // 認証後は通常のアプリ画面を表示
         return (
-            <div className={`flex flex-col h-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans transition-colors duration-300 ${themeColor} relative`}>
+            <div className={`flex flex-col h-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans transition-colors duration-300 bg-gray-50 relative`}>
             <AnimationStyles />
             
             {/* Toast Notification */}
@@ -2029,7 +2069,7 @@
 
             {/* Header */}
             <header 
-                className="bg-white/90 backdrop-blur-md px-2 pb-2 pt-2 sm:px-4 sm:pb-4 shadow-sm z-20 flex justify-between items-center border-b border-white/20"
+                className={`${themeColor}/90 backdrop-blur-md px-2 pb-2 pt-2 sm:px-4 sm:pb-4 shadow-sm z-20 flex justify-between items-center border-b border-white/20`}
                 style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
             >
                 
@@ -2040,13 +2080,13 @@
                 </h1>
 
                 {/* ナビゲーション（年月選択） */}
-                <div className="flex items-center justify-center gap-1 bg-gray-100/80 rounded-lg p-0.5 shrink-0">
+                <div className="relative flex items-center justify-center gap-1 bg-gray-100/80 rounded-lg p-0.5 shrink-0">
                     <div className="flex items-center gap-1 px-1">
                     <div className="relative">
                         <select
                         value={year}
                         onChange={handleYearChange}
-                        className="appearance-none bg-transparent font-bold text-sm py-1 pl-1 cursor-pointer outline-none text-gray-700 hover:text-blue-600 transition-colors text-right w-[3.5em]"
+                        className="appearance-none bg-transparent font-bold text-sm py-1 pl-1 outline-none text-gray-700 text-right w-[3.5em] cursor-pointer"
                         >
                         {yearOptions.map(y => <option key={y} value={y}>{y}年</option>)}
                         </select>
@@ -2055,7 +2095,7 @@
                         <select
                         value={month}
                         onChange={handleMonthChange}
-                        className="appearance-none bg-transparent font-bold text-sm py-1 pr-1 cursor-pointer outline-none text-gray-700 hover:text-blue-600 transition-colors text-left w-[2.5em]"
+                        className="appearance-none bg-transparent font-bold text-sm py-1 pr-1 outline-none text-gray-700 text-left w-[2.5em] cursor-pointer"
                         >
                         {Array.from({ length: 12 }, (_, i) => (
                             <option key={i} value={i}>{i + 1}月</option>
@@ -2106,7 +2146,8 @@
 
             {/* Main Content */}
             <div
-                className="flex-1 overflow-y-auto"
+                key={currentDate.toISOString()} // keyを変えてアニメーション発火
+                className={`flex-1 overflow-y-auto ${slideDirection}`} // クラス適用
                 onTouchStart={onTouchStart}
                 onTouchMove={onTouchMove}
                 onTouchEnd={onTouchEnd}
@@ -2116,7 +2157,7 @@
 
             {/* Monthly Summary Footer */}
             <div 
-                className="bg-white/95 backdrop-blur-md border-t px-3 pt-3 text-sm shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 relative transition-all duration-300"
+                className={`${themeColor}/95 backdrop-blur-md border-t px-3 pt-3 text-sm shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 relative transition-all duration-300`}
                 style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
             >
                 <div className="flex w-full items-stretch h-14">
@@ -2124,14 +2165,15 @@
                             onClick={() => setViewMode('month')}
                             className="flex-1 flex flex-col justify-center items-center gap-0.5 transition-all duration-200"
                         >
-                             <CalendarIcon size={20} strokeWidth={2.5} className={viewMode === 'month' ? "text-[#0EAD00]" : "text-[#89898C]"} />
+                             {/* size 26 -> 21, text-[13px] -> text-[10px] */}
+                             <CalendarIcon size={21} strokeWidth={2.5} className={viewMode === 'month' ? "text-[#0EAD00]" : "text-[#89898C]"} />
                              <span className={`text-[10px] font-bold leading-none ${viewMode === 'month' ? "text-[#111111]" : "text-[#89898C]"}`}>カレンダー</span>
                         </button>
                         <button
                             onClick={() => setViewMode('week')}
                             className="flex-1 flex flex-col justify-center items-center gap-0.5 transition-all duration-200"
                         >
-                             <LayoutList size={20} strokeWidth={2.5} className={viewMode === 'week' ? "text-[#0EAD00]" : "text-[#89898C]"} />
+                             <LayoutList size={21} strokeWidth={2.5} className={viewMode === 'week' ? "text-[#0EAD00]" : "text-[#89898C]"} />
                              <span className={`text-[10px] font-bold leading-none ${viewMode === 'week' ? "text-[#111111]" : "text-[#89898C]"}`}>詳細一覧</span>
                         </button>
                 <button
@@ -2143,7 +2185,7 @@
                     }}
                     className="flex-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-95"
                 >
-                    <BarChart3 size={20} strokeWidth={2.5} className={isSummaryModalOpen ? "text-[#0EAD00]" : "text-[#89898C]"} />
+                    <BarChart3 size={21} strokeWidth={2.5} className={isSummaryModalOpen ? "text-[#0EAD00]" : "text-[#89898C]"} />
                     <span className={`text-[10px] font-bold leading-none ${isSummaryModalOpen ? "text-[#111111]" : "text-[#89898C]"}`}>集計</span>
                 </button>
                 </div>
@@ -2721,7 +2763,7 @@
                         <div className="bg-white p-3 rounded-lg border shadow-sm mb-4">
                             <div className="flex items-center gap-2 mb-2 border-b border-gray-100 pb-2">
                                 <Briefcase size={16} className="text-blue-600"/>
-                                <h4 className="font-bold text-blue-800 text-sm">勤務</h4>
+                                <h4 className="font-bold text-blue-800 text-sm">通常勤務</h4>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="text-center">
@@ -2744,7 +2786,7 @@
                         <div className="bg-white p-3 rounded-lg border shadow-sm border-orange-100">
                             <div className="flex items-center gap-2 mb-2 border-b border-orange-100 pb-2">
                                 <HardHat size={16} className="text-orange-600"/>
-                                <h4 className="font-bold text-orange-800 text-sm">休出</h4>
+                                <h4 className="font-bold text-orange-800 text-sm">休日出勤</h4>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="text-center">
@@ -3454,9 +3496,19 @@
             {isWelcomeModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-[120] flex items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl overflow-hidden p-6 flex flex-col items-center">
-                        <div className="mb-4 text-center w-full">
-                            <p className="text-sm font-bold text-gray-700 leading-relaxed text-left">
-                                画面右上の「⚙設定」から、各休暇の日数を設定してください。本日までの「取得日数」または「残日数」を入力することで設定できます。
+                        
+                        {/* タイトル追加 (修正: ネガティブマージンで上部に吸着、背景色追加) */}
+                        <div className="flex flex-col items-center mb-5 w-[calc(100%+3rem)] -mx-6 -mt-6 pt-6 pb-4 border-b border-gray-100 bg-blue-50">
+                            <div className="bg-blue-100 p-3 rounded-full mb-2">
+                                <Sparkles className="text-blue-500" size={28} />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-800">初回設定のおねがい</h3>
+                        </div>
+
+                        <div className="mb-6 text-center w-full">
+                            {/* フォントサイズを大きく変更 */}
+                            <p className="text-lg font-bold text-gray-700 leading-relaxed text-left">
+                                画面右上の「⚙設定」から、<span className="text-red-500">各休暇の日数を設定</span>してください。本日までの「取得日数」または「残日数」を入力することで設定できます。
                             </p>
                         </div>
                         
