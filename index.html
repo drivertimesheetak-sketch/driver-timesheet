@@ -512,7 +512,7 @@
         const [reportMonth, setReportMonth] = useState(new Date().getMonth());
 
         // テーマカラー設定
-        const [themeColor, setThemeColor] = useState('bg-gray-50');
+        const [themeColor, setThemeColor] = useState('bg-gray-100');
 
         // 設定値 (passcodeを追加, 初期値8810)
         const [settings, setSettings] = useState({
@@ -588,14 +588,14 @@
 
         // --- 定数定義 ---
         const THEME_COLORS = [
-            { id: 'red', class: 'bg-red-50', border: 'border-red-100', label: '赤' },
-            { id: 'orange', class: 'bg-orange-50', border: 'border-orange-100', label: '橙' },
-            { id: 'yellow', class: 'bg-yellow-50', border: 'border-yellow-100', label: '黄' },
-            { id: 'green', class: 'bg-green-50', border: 'border-green-100', label: '緑' },
-            { id: 'blue', class: 'bg-blue-50', border: 'border-blue-100', label: '青' },
-            { id: 'indigo', class: 'bg-indigo-50', border: 'border-indigo-100', label: '藍' },
-            { id: 'purple', class: 'bg-purple-50', border: 'border-purple-100', label: '紫' },
-            { id: 'default', class: 'bg-gray-50', border: 'border-gray-100', label: '灰' },
+            { id: 'red', class: 'bg-red-100', border: 'border-red-100', label: '赤' },
+            { id: 'orange', class: 'bg-orange-100', border: 'border-orange-100', label: '橙' },
+            { id: 'yellow', class: 'bg-yellow-100', border: 'border-yellow-100', label: '黄' },
+            { id: 'green', class: 'bg-green-100', border: 'border-green-100', label: '緑' },
+            { id: 'blue', class: 'bg-blue-100', border: 'border-blue-100', label: '青' },
+            { id: 'indigo', class: 'bg-indigo-100', border: 'border-indigo-100', label: '藍' },
+            { id: 'purple', class: 'bg-purple-100', border: 'border-purple-100', label: '紫' },
+            { id: 'default', class: 'bg-gray-100', border: 'border-gray-100', label: '灰' },
         ];
 
         const WORK_PATTERNS = [
@@ -2080,7 +2080,7 @@
                 </h1>
 
                 {/* ナビゲーション（年月選択） */}
-                <div className="relative flex items-center justify-center gap-1 bg-gray-100/80 rounded-lg p-0.5 shrink-0">
+                <div className="relative flex items-center justify-center gap-1 rounded-lg p-0.5 shrink-0">
                     <div className="flex items-center gap-1 px-1">
                     <div className="relative">
                         <select
@@ -2110,26 +2110,26 @@
                 <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar ml-2">
 
                 <div className="flex gap-1 mr-1">
-                    <div className="bg-red-50/85 rounded p-1.5 px-2 text-center flex flex-col justify-center border border-red-50/85 min-w-[4.2rem]">
-                        <span className="text-[11px] text-red-500/65 font-bold block leading-none mb-0.5">残業</span>
+                    <div className="bg-[#FFFFFF] rounded p-1.5 px-2 text-center flex flex-col justify-center border border-[#E2E2E2] min-w-[4.2rem]">
+                        <span className="text-[11px] text-[#777777] font-bold block leading-none mb-0.5">残業</span>
                         <span className="text-[15px] font-bold text-red-700/65 leading-none">{monthlySummary.overtimeHours}h {monthlySummary.overtimeMinutes}m</span>
                     </div>
-                    <div className="bg-orange-50/85 rounded p-1.5 px-2 text-center flex flex-col justify-center border border-orange-50/85 min-w-[4.2rem]">
-                        <span className="text-[11px] text-orange-600/65 font-bold block leading-none mb-0.5">休出</span>
+                    <div className="bg-[#FFFFFF] rounded p-1.5 px-2 text-center flex flex-col justify-center border border-[#E2E2E2] min-w-[4.2rem]">
+                        <span className="text-[11px] text-[#777777] font-bold block leading-none mb-0.5">休出</span>
                         <span className="text-[15px] font-bold text-orange-700/65 leading-none">{monthlySummary.holidayWorkHours}h {monthlySummary.holidayWorkMinutes}m</span>
                     </div>
                 </div>
                 
                 {/* 表示モード切替 */}
-                <div className="flex bg-gray-100/80 rounded-lg p-0.5 relative shrink-0">
+                <div className="flex rounded-lg p-0.5 relative shrink-0">
                     
                     {/* Config Button (New) */}
                     <button
                     onClick={openConfigModal}
-                    className={`p-2 rounded-md transition-all ${isConfigModalOpen ? 'bg-white shadow text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}
+                    className={`p-2 rounded-md transition-all ${isConfigModalOpen ? 'text-gray-800' : 'text-gray-400 hover:text-gray-600'}`}
                     title="アプリ設定 (パスワード変更)"
                     >
-                    <Settings size={22}/>
+                    <Settings size={26}/>
                     </button>
                     
                     {/* フルスクリーン切り替えボタン */}
