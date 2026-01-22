@@ -45,13 +45,15 @@
             -webkit-tap-highlight-color: transparent;
             -webkit-touch-callout: none;
             overscroll-behavior-y: none; /* バウンススクロール防止 */
+            -webkit-user-select: none;
+            user-select: none;
         }
         /* 入力フォームのフォーカス時のズーム防止（iOS） */
         input, select, textarea {
             font-size: 16px !important;
             /* iOS PWAでキーボードが出ない問題の対策 */
-            -webkit-user-select: text;
-            user-select: text;
+            -webkit-user-select: text !important;
+            user-select: text !important;
         }
     </style>
 </head>
