@@ -472,6 +472,102 @@
         );
         };
 
+        // リール式日付ピッカーコンポーネント (新規追加)
+        const DatePicker = ({ isOpen, onClose, currentYear, currentMonth, onSelect }) => {
+        const ITEM_HEIGHT = 44; // 項目の高さ
+        const VISIBLE_ITEMS = 5; // 表示する項目数 (奇数推奨)
+        const years = Array.from({ length: 16 }, (_, i) => 2025 + i);
+        const months = Array.from({ length: 12 }, (_, i) => i);
+        
+        const yearRef = useRef(null);
+        const monthRef = useRef(null);
+        
+        // 初期スクロール位置合わせ
+        useEffect(() => {
+            if (isOpen) {
+            // レンダリング後にスクロール位置を調整するためにsetTimeoutを使用
+            setTimeout(() => {
+                if (yearRef.current) {
+                    const yIndex = years.indexOf(currentYear);
+                    if (yIndex >= 0) yearRef.current.scrollTop = yIndex * ITEM_HEIGHT;
+                }
+                if (monthRef.current) {
+                    monthRef.current.scrollTop = currentMonth * ITEM_HEIGHT;
+                }
+            }, 0);
+            }
+        }, [isOpen]);
+
+        const handleConfirm = () => {
+            let newYear = currentYear;
+            let newMonth = currentMonth;
+
+            if (yearRef.current) {
+                const index = Math.round(yearRef.current.scrollTop / ITEM_HEIGHT);
+                if (years[index] !== undefined) newYear = years[index];
+            }
+            if (monthRef.current) {
+                const index = Math.round(monthRef.current.scrollTop / ITEM_HEIGHT);
+                if (months[index] !== undefined) newMonth = months[index];
+            }
+            
+            onSelect(newYear, newMonth);
+            onClose();
+        };
+
+        if (!isOpen) return null;
+
+        return (
+            <div className="fixed inset-0 z-[150] bg-slate-900/40 backdrop-blur-sm flex items-end justify-center sm:items-center animation-fade-in" onClick={onClose}>
+            <div className="bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col ring-1 ring-black/5" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur-md">
+                    <button onClick={onClose} className="px-4 py-2 text-slate-500 font-bold text-sm hover:bg-slate-200/50 rounded-xl transition-colors">キャンセル</button>
+                    <span className="font-bold text-slate-700">年月を選択</span>
+                    <button onClick={handleConfirm} className="px-4 py-2 text-blue-600 font-bold text-sm hover:bg-blue-50 rounded-xl transition-colors">完了</button>
+                </div>
+                
+                {/* Picker Body */}
+                <div className="relative h-64 flex bg-white">
+                    {/* Selection Highlight */}
+                    <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-[44px] bg-slate-100/50 border-y border-blue-100 pointer-events-none z-0" />
+                    
+                    {/* Year Column */}
+                    <div className="flex-1 relative z-10">
+                        <ul 
+                            ref={yearRef}
+                            className="h-full overflow-y-auto no-scrollbar snap-y snap-mandatory py-[106px]" // (256 - 44) / 2 = 106
+                            onScroll={(e) => {
+                                // スナップ挙動の補正などはCSSにお任せ
+                            }}
+                        >
+                            {years.map(y => (
+                                <li key={y} className="h-[44px] flex items-center justify-center snap-center text-lg font-medium text-slate-600">
+                                    {y}年
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    
+                    {/* Month Column */}
+                    <div className="flex-1 relative z-10">
+                        <ul 
+                            ref={monthRef}
+                            className="h-full overflow-y-auto no-scrollbar snap-y snap-mandatory py-[106px]"
+                        >
+                            {months.map(m => (
+                                <li key={m} className="h-[44px] flex items-center justify-center snap-center text-lg font-medium text-slate-600">
+                                    {m + 1}月
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            </div>
+        );
+        };
+
         const App = () => {
         // --- State ---
         // 認証状態のステート
@@ -508,6 +604,9 @@
         const [summaryTab, setSummaryTab] = useState('month');
         const [viewMode, setViewMode] = useState('month');
         const [isFullscreen, setIsFullscreen] = useState(false);
+        
+        // 日付ピッカーのモーダル状態 (追加)
+        const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
         
         // アニメーション方向管理用State (追加)
         const [slideDirection, setSlideDirection] = useState('');
@@ -883,14 +982,8 @@
             if (isRightSwipe) prevPeriod();
         };
 
-        const handleYearChange = (e) => {
-            const newYear = parseInt(e.target.value, 10);
-            setCurrentDate(new Date(newYear, month, 1));
-        };
-
-        const handleMonthChange = (e) => {
-            const newMonth = parseInt(e.target.value, 10);
-            setCurrentDate(new Date(year, newMonth, 1));
+        const handleDateSelect = (newYear, newMonth) => {
+            setCurrentDate(new Date(newYear, newMonth, 1));
         };
 
         const yearOptions = Array.from({ length: 16 }, (_, i) => 2025 + i);
@@ -2144,28 +2237,18 @@
 
                 {/* ナビゲーション（年月選択） */}
                 <div className="relative flex items-center justify-center gap-1 rounded-lg p-0.5 shrink-0">
-                    <div className="flex items-center gap-0.5">
-                    <div className="relative group">
-                        <select
-                        value={year}
-                        onChange={handleYearChange}
-                        className="appearance-none bg-transparent font-bold text-lg py-1 pl-1 outline-none text-slate-800 text-right w-[4em] cursor-pointer hover:text-blue-600 transition-colors"
-                        >
-                        {yearOptions.map(y => <option key={y} value={y}>{y}年</option>)}
-                        </select>
-                    </div>
-                    <div className="relative group">
-                        <select
-                        value={month}
-                        onChange={handleMonthChange}
-                        className="appearance-none bg-transparent font-bold text-lg py-1 pr-1 outline-none text-slate-800 text-left w-[2.8em] cursor-pointer hover:text-blue-600 transition-colors"
-                        >
-                        {Array.from({ length: 12 }, (_, i) => (
-                            <option key={i} value={i}>{i + 1}月</option>
-                        ))}
-                        </select>
-                    </div>
-                    </div>
+                    <button
+                        onClick={() => setIsDatePickerOpen(true)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-100 transition-all group"
+                    >
+                        <span className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors font-mono tracking-tight">
+                            {year}年
+                        </span>
+                        <span className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors font-mono tracking-tight">
+                            {month + 1}月
+                        </span>
+                        <ChevronDown size={16} className="text-slate-400 group-hover:text-blue-600 transition-colors ml-1"/>
+                    </button>
                 </div>
                 </div>
 
@@ -3640,6 +3723,15 @@
                     const [y, m, d] = dateToDelete.split('-');
                     return `${y}年${Number(m)}月${Number(d)}日のデータを削除してもよろしいですか？`;
                 })() : ''}
+            />
+
+            {/* 日付ピッカーモーダル (追加) */}
+            <DatePicker
+                isOpen={isDatePickerOpen}
+                onClose={() => setIsDatePickerOpen(false)}
+                currentYear={year}
+                currentMonth={month}
+                onSelect={handleDateSelect}
             />
             </div>
         );
