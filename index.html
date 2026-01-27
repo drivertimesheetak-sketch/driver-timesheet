@@ -258,55 +258,132 @@
         );
         };
 
-        // 時間選択コンポーネント
+        // リール式時間ピッカーコンポーネント (新規追加)
+        const TimePicker = ({ isOpen, onClose, initialValue, onConfirm, minuteOptions }) => {
+            const ITEM_HEIGHT = 44;
+            const [hStr, mStr] = (initialValue || '00:00').split(':');
+            const initialH = parseInt(hStr || '0', 10);
+            const initialM = parseInt(mStr || '0', 10);
+
+            const hours = Array.from({ length: 25 }, (_, i) => i);
+            const minutes = minuteOptions || Array.from({ length: 60 }, (_, i) => i);
+
+            const hourRef = useRef(null);
+            const minuteRef = useRef(null);
+
+            useEffect(() => {
+                if (isOpen) {
+                    setTimeout(() => {
+                        if (hourRef.current) {
+                            const hIndex = hours.indexOf(initialH);
+                            if (hIndex >= 0) hourRef.current.scrollTop = hIndex * ITEM_HEIGHT;
+                        }
+                        if (minuteRef.current) {
+                            // 近似値または完全一致を探す
+                            let mIndex = minutes.indexOf(initialM);
+                            if (mIndex === -1) {
+                                // オプションに含まれない場合、0を選択する
+                                mIndex = 0;
+                            }
+                            minuteRef.current.scrollTop = mIndex * ITEM_HEIGHT;
+                        }
+                    }, 0);
+                }
+            }, [isOpen]);
+
+            const handleConfirm = () => {
+                let selectedH = initialH;
+                let selectedM = initialM;
+
+                if (hourRef.current) {
+                    const index = Math.round(hourRef.current.scrollTop / ITEM_HEIGHT);
+                    if (hours[index] !== undefined) selectedH = hours[index];
+                }
+                if (minuteRef.current) {
+                    const index = Math.round(minuteRef.current.scrollTop / ITEM_HEIGHT);
+                    if (minutes[index] !== undefined) selectedM = minutes[index];
+                }
+
+                onConfirm(`${String(selectedH).padStart(2, '0')}:${String(selectedM).padStart(2, '0')}`);
+                onClose();
+            };
+
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 z-[160] bg-slate-900/40 backdrop-blur-sm flex items-end justify-center sm:items-center animation-fade-in" onClick={onClose}>
+                <div className="bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col ring-1 ring-black/5" onClick={e => e.stopPropagation()}>
+                    {/* Header */}
+                    <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur-md">
+                        <button onClick={onClose} className="px-4 py-2 text-slate-500 font-bold text-sm hover:bg-slate-200/50 rounded-xl transition-colors">キャンセル</button>
+                        <span className="font-bold text-slate-700">時間を選択</span>
+                        <button onClick={handleConfirm} className="px-4 py-2 text-blue-600 font-bold text-sm hover:bg-blue-50 rounded-xl transition-colors">完了</button>
+                    </div>
+                    
+                    {/* Picker Body */}
+                    <div className="relative h-64 flex bg-white">
+                        {/* Selection Highlight */}
+                        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-[44px] bg-slate-100/50 border-y border-blue-100 pointer-events-none z-0" />
+                        
+                        {/* Hour Column */}
+                        <div className="flex-1 relative z-10">
+                            <ul 
+                                ref={hourRef}
+                                className="h-full overflow-y-auto no-scrollbar snap-y snap-mandatory py-[106px]"
+                            >
+                                {hours.map(h => (
+                                    <li key={h} className="h-[44px] flex items-center justify-center snap-center text-lg font-medium text-slate-600">
+                                        {h}時
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        
+                        {/* Minute Column */}
+                        <div className="flex-1 relative z-10">
+                            <ul 
+                                ref={minuteRef}
+                                className="h-full overflow-y-auto no-scrollbar snap-y snap-mandatory py-[106px]"
+                            >
+                                {minutes.map(m => (
+                                    <li key={m} className="h-[44px] flex items-center justify-center snap-center text-lg font-medium text-slate-600">
+                                        {String(m).padStart(2, '0')}分
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            );
+        };
+
+        // 時間選択コンポーネント (修正: リール式に変更)
         const TimeSelect = ({ value, onChange, minuteOptions }) => {
-        const [hStr, mStr] = (value || '00:00').split(':');
-        const h = parseInt(hStr || '0', 10);
-        const m = parseInt(mStr || '0', 10);
+            const [isPickerOpen, setIsPickerOpen] = useState(false);
+            const displayValue = value || '00:00';
+            const [hStr, mStr] = displayValue.split(':');
 
-        const HOUR_OPTIONS = Array.from({ length: 25 }, (_, i) => i);
-        const MINUTE_OPTIONS_1 = Array.from({ length: 60 }, (_, i) => i);
-        const minutes = minuteOptions || MINUTE_OPTIONS_1;
-
-        const handleHChange = (e) => {
-            const newH = e.target.value;
-            onChange(`${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-        };
-
-        const handleMChange = (e) => {
-            const newM = e.target.value;
-            onChange(`${String(h).padStart(2, '0')}:${String(newM).padStart(2, '0')}`);
-        };
-
-        return (
-            <div className="flex items-center gap-2 w-full">
-            <div className="relative flex-1">
-                <select
-                    value={h}
-                    onChange={handleHChange}
-                    className="w-full p-3 pl-4 border-0 rounded-xl bg-slate-50 text-slate-700 font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all shadow-inner appearance-none"
+            return (
+                <>
+                <button
+                    type="button"
+                    onClick={() => setIsPickerOpen(true)}
+                    className="w-full p-3 border-0 rounded-xl bg-slate-50 text-slate-700 font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all shadow-inner flex justify-between items-center"
                 >
-                    {HOUR_OPTIONS.map(hour => (
-                    <option key={hour} value={hour}>{hour}時</option>
-                    ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-            </div>
-            <span className="text-slate-300 font-bold">:</span>
-            <div className="relative flex-1">
-                <select
-                    value={m}
-                    onChange={handleMChange}
-                    className="w-full p-3 pl-4 border-0 rounded-xl bg-slate-50 text-slate-700 font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all shadow-inner appearance-none"
-                >
-                    {minutes.map(minute => (
-                    <option key={minute} value={minute}>{String(minute).padStart(2, '0')}分</option>
-                    ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-            </div>
-            </div>
-        );
+                    <span className="font-mono text-lg tracking-wider">{hStr} : {mStr}</span>
+                    <ChevronDown className="text-slate-400" size={16} />
+                </button>
+                
+                <TimePicker
+                    isOpen={isPickerOpen}
+                    onClose={() => setIsPickerOpen(false)}
+                    initialValue={displayValue}
+                    onConfirm={onChange}
+                    minuteOptions={minuteOptions}
+                />
+                </>
+            );
         };
 
         // カスタム車両選択コンポーネント
