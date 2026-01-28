@@ -73,7 +73,7 @@
             MapPin, Train, LayoutList, LayoutGrid, HardHat, Settings, Palmtree,
             Smile, Sparkles, Loader2, Bot, Truck, Plus, Minus, ChevronDown,
             ChevronUp, Palette, Stethoscope, Receipt, AlertCircle, Coins, Download, Upload,
-            Maximize, Minimize, Info, Lock, Delete, RotateCcw
+            Maximize, Minimize, Info, Lock, Delete, RotateCcw, Mic
         } from 'lucide-react';
 
         // アニメーション用のスタイルを追加
@@ -1414,6 +1414,52 @@
             }
         };
 
+        // 音声入力ハンドラ
+        const startVoiceInput = (index, type) => {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                showToast("このブラウザは音声入力に対応していません", "error");
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'ja-JP';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            recognition.onstart = () => {
+                showToast("音声入力中...", "info");
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                if (type === 'transportation') {
+                    const newTrans = [...tempEntry.transportations];
+                    const current = newTrans[index].name;
+                    newTrans[index] = { 
+                        ...newTrans[index], 
+                        name: current ? current + ' ' + transcript : transcript 
+                    };
+                    setTempEntry({ ...tempEntry, transportations: newTrans });
+                } else if (type === 'expense') {
+                    const newExps = [...tempEntry.expenses];
+                    const current = newExps[index].name;
+                    newExps[index] = { 
+                        ...newExps[index], 
+                        name: current ? current + ' ' + transcript : transcript 
+                    };
+                    setTempEntry({ ...tempEntry, expenses: newExps });
+                }
+            };
+            
+            recognition.onerror = (event) => {
+                console.error("Voice input error", event);
+                showToast("音声入力に失敗しました", "error");
+            };
+
+            recognition.start();
+        };
+
         // --- 集計ロジック ---
         const calculateStats = (data, targetYear, targetMonth = null) => {
             let totalMinutes = 0;
@@ -2652,7 +2698,14 @@
                                     const visibleLimit = Math.min(firstEmptyIndex + 1, 10);
                                     
                                     return tempEntry.transportations.slice(0, visibleLimit).map((trans, index) => (
-                                    <div key={index} className="flex gap-2">
+                                    <div key={index} className="flex gap-2 items-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => startVoiceInput(index, 'transportation')}
+                                        className="p-3 text-amber-600 bg-amber-100 hover:bg-amber-200 rounded-xl transition-colors shrink-0"
+                                    >
+                                        <Mic size={18} />
+                                    </button>
                                     <input
                                         type="text"
                                         placeholder={`交通機関 ${index + 1}`}
@@ -2702,7 +2755,14 @@
                                     const visibleLimit = Math.min(firstEmptyIndex + 1, 10);
 
                                     return tempEntry.expenses.slice(0, visibleLimit).map((exp, index) => (
-                                    <div key={index} className="flex gap-2">
+                                    <div key={index} className="flex gap-2 items-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => startVoiceInput(index, 'expense')}
+                                        className="p-3 text-cyan-600 bg-cyan-100 hover:bg-cyan-200 rounded-xl transition-colors shrink-0"
+                                    >
+                                        <Mic size={18} />
+                                    </button>
                                     <input
                                         type="text"
                                         placeholder={`立替内容 ${index + 1}`}
