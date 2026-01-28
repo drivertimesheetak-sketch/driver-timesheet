@@ -73,7 +73,7 @@
             MapPin, Train, LayoutList, LayoutGrid, HardHat, Settings, Palmtree,
             Smile, Sparkles, Loader2, Bot, Truck, Plus, Minus, ChevronDown,
             ChevronUp, Palette, Stethoscope, Receipt, AlertCircle, Coins, Download, Upload,
-            Maximize, Minimize, Info, Lock, Delete, RotateCcw, Mic
+            Maximize, Minimize, Info, Lock, Delete, RotateCcw
         } from 'lucide-react';
 
         // アニメーション用のスタイルを追加
@@ -699,6 +699,8 @@
             transportations: Array.from({ length: 10 }, () => ({ name: '', cost: '' })),
             expenses: Array.from({ length: 10 }, () => ({ name: '', cost: '' })),
             vehicles: Array.from({ length: 5 }, () => ''),
+            isDeemed: false, // 追加: みなしフラグ
+            deemedTime: '', // 追加: みなし退勤時刻
         });
 
         // --- 定数定義 ---
@@ -1009,6 +1011,8 @@
                 isSiteStart: workData[dateKey].isSiteStart || false,
                 isSiteEnd: workData[dateKey].isSiteEnd || false,
                 isTempOvernight: workData[dateKey].isTempOvernight || false, // 追加
+                isDeemed: workData[dateKey].isDeemed || false, // 追加
+                deemedTime: workData[dateKey].deemedTime || '', // 追加
                 isHolidayWork: workData[dateKey].isHolidayWork || false,
                 holidayWorkType: workData[dateKey].holidayWorkType || null,
                 transportations: workData[dateKey].transportations 
@@ -1029,6 +1033,8 @@
                 isSiteStart: false,
                 isSiteEnd: false,
                 isTempOvernight: false, // 追加
+                isDeemed: false, // 追加
+                deemedTime: '', // 追加
                 isHolidayWork: false,
                 holidayWorkType: null,
                 transportations: defaultTransportations,
@@ -1040,10 +1046,22 @@
         };
 
         const handleSave = () => {
+            // noteへの追記処理
+            let finalNote = tempEntry.note;
+            if (tempEntry.isDeemed && tempEntry.deemedTime) {
+                const deemedStr = `みなし退勤: ${tempEntry.deemedTime}`;
+                // noteがundefinedの場合は空文字にする
+                const currentNote = finalNote || '';
+                if (!currentNote.includes(deemedStr)) {
+                    finalNote = currentNote ? `${currentNote}\n${deemedStr}` : deemedStr;
+                }
+            }
+
             setWorkData(prev => ({
             ...prev,
             [selectedDate]: {
                 ...tempEntry,
+                note: finalNote,
                 breakTime: undefined
             }
             }));
@@ -1412,52 +1430,6 @@
             }));
             setDeleteConfirmation(null);
             }
-        };
-
-        // 音声入力ハンドラ
-        const startVoiceInput = (index, type) => {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                showToast("このブラウザは音声入力に対応していません", "error");
-                return;
-            }
-
-            const recognition = new SpeechRecognition();
-            recognition.lang = 'ja-JP';
-            recognition.interimResults = false;
-            recognition.maxAlternatives = 1;
-
-            recognition.onstart = () => {
-                showToast("音声入力中...", "info");
-            };
-
-            recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                if (type === 'transportation') {
-                    const newTrans = [...tempEntry.transportations];
-                    const current = newTrans[index].name;
-                    newTrans[index] = { 
-                        ...newTrans[index], 
-                        name: current ? current + ' ' + transcript : transcript 
-                    };
-                    setTempEntry({ ...tempEntry, transportations: newTrans });
-                } else if (type === 'expense') {
-                    const newExps = [...tempEntry.expenses];
-                    const current = newExps[index].name;
-                    newExps[index] = { 
-                        ...newExps[index], 
-                        name: current ? current + ' ' + transcript : transcript 
-                    };
-                    setTempEntry({ ...tempEntry, expenses: newExps });
-                }
-            };
-            
-            recognition.onerror = (event) => {
-                console.error("Voice input error", event);
-                showToast("音声入力に失敗しました", "error");
-            };
-
-            recognition.start();
         };
 
         // --- 集計ロジック ---
@@ -2698,14 +2670,7 @@
                                     const visibleLimit = Math.min(firstEmptyIndex + 1, 10);
                                     
                                     return tempEntry.transportations.slice(0, visibleLimit).map((trans, index) => (
-                                    <div key={index} className="flex gap-2 items-center">
-                                    <button
-                                        type="button"
-                                        onClick={() => startVoiceInput(index, 'transportation')}
-                                        className="p-3 text-amber-600 bg-amber-100 hover:bg-amber-200 rounded-xl transition-colors shrink-0"
-                                    >
-                                        <Mic size={18} />
-                                    </button>
+                                    <div key={index} className="flex gap-2">
                                     <input
                                         type="text"
                                         placeholder={`交通機関 ${index + 1}`}
@@ -2755,14 +2720,7 @@
                                     const visibleLimit = Math.min(firstEmptyIndex + 1, 10);
 
                                     return tempEntry.expenses.slice(0, visibleLimit).map((exp, index) => (
-                                    <div key={index} className="flex gap-2 items-center">
-                                    <button
-                                        type="button"
-                                        onClick={() => startVoiceInput(index, 'expense')}
-                                        className="p-3 text-cyan-600 bg-cyan-100 hover:bg-cyan-200 rounded-xl transition-colors shrink-0"
-                                    >
-                                        <Mic size={18} />
-                                    </button>
+                                    <div key={index} className="flex gap-2">
                                     <input
                                         type="text"
                                         placeholder={`立替内容 ${index + 1}`}
@@ -2828,7 +2786,34 @@
                                 {tempEntry.isTempOvernight && <CheckCircle2 size={16} />}
                                 臨泊
                             </button>
+                            {/* 追加ボタン */}
+                            {!tempEntry.isHolidayWork && (
+                            <button
+                                onClick={() => setTempEntry(prev => ({ ...prev, isDeemed: !prev.isDeemed }))}
+                                className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all border flex items-center justify-center gap-2 shadow-sm
+                                ${tempEntry.isDeemed
+                                    ? 'bg-slate-700 text-white border-slate-700 shadow-lg shadow-slate-500/30'
+                                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                            >
+                                {tempEntry.isDeemed && <CheckCircle2 size={16} />}
+                                みなし
+                            </button>
+                            )}
                             </div>
+                            
+                            {/* 追加時刻入力 */}
+                            {!tempEntry.isHolidayWork && tempEntry.isDeemed && (
+                                <div className="mt-3 animate-in fade-in slide-in-from-top-1 bg-slate-100/50 p-3 rounded-xl border border-slate-200/50">
+                                    <label className="block text-xs font-bold text-slate-500 mb-1 flex items-center gap-1">
+                                        <Clock size={12}/> みなし退勤時刻
+                                    </label>
+                                    <TimeSelect
+                                        value={tempEntry.deemedTime}
+                                        onChange={(val) => setTempEntry({ ...tempEntry, deemedTime: val })}
+                                        minuteOptions={MINUTE_OPTIONS_1}
+                                    />
+                                </div>
+                            )}
                         </div>
                         </div>
                     )}
