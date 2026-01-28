@@ -2663,39 +2663,102 @@
                             </div>
 
                             <div className="p-3">
-                                <div className="space-y-2">
-                                {(() => {
-                                    let firstEmptyIndex = tempEntry.transportations.findIndex(t => !t.name && !t.cost);
-                                    if (firstEmptyIndex === -1) firstEmptyIndex = 10;
-                                    const visibleLimit = Math.min(firstEmptyIndex + 1, 10);
-                                    
-                                    return tempEntry.transportations.slice(0, visibleLimit).map((trans, index) => (
-                                    <div key={index} className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        placeholder={`交通機関 ${index + 1}`}
-                                        value={trans.name}
-                                        onChange={(e) => {
-                                        const newTrans = [...tempEntry.transportations];
-                                        newTrans[index] = { ...newTrans[index], name: e.target.value };
-                                        setTempEntry({ ...tempEntry, transportations: newTrans });
-                                        }}
-                                        className="flex-[2] w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm placeholder:text-slate-300"
-                                    />
-                                    <input
-                                        type="number"
-                                        placeholder="金額"
-                                        value={trans.cost}
-                                        onChange={(e) => {
-                                        const newTrans = [...tempEntry.transportations];
-                                        newTrans[index] = { ...newTrans[index], cost: e.target.value };
-                                        setTempEntry({ ...tempEntry, transportations: newTrans });
-                                        }}
-                                        className="flex-1 w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
-                                    />
+                                <div className="space-y-4"> {/* Spacing between sets */}
+                                {tempEntry.transportations.map((trans, index) => {
+                                    // Visibility Logic
+                                    if (index > 0) {
+                                        const prev = tempEntry.transportations[index - 1];
+                                        // Strict check: from, to, cost must be present to show next
+                                        // Also support legacy data: if name and cost exist, treat as complete
+                                        const isPrevComplete = (prev.from && prev.to && prev.cost) || (prev.name && prev.cost);
+                                        if (!isPrevComplete) return null;
+                                    }
+
+                                    return (
+                                    <div key={index} className="flex flex-col gap-2 p-2 bg-white/40 rounded-xl border border-amber-100/50">
+                                        {/* Row 1 */}
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                placeholder="乗車場所"
+                                                value={trans.from || (trans.name && !trans.to ? trans.name : '') || ''} // Fallback to name if generic
+                                                onChange={(e) => {
+                                                    const newTrans = [...tempEntry.transportations];
+                                                    const val = e.target.value;
+                                                    const to = newTrans[index].to || '';
+                                                    const mode = newTrans[index].mode || '鉄道';
+                                                    const newName = (val || to) ? `${val} → ${to}（${mode}）` : '';
+                                                    newTrans[index] = { 
+                                                        ...newTrans[index], 
+                                                        from: val,
+                                                        name: newName
+                                                    };
+                                                    setTempEntry({ ...tempEntry, transportations: newTrans });
+                                                }}
+                                                className="flex-[2] w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm placeholder:text-slate-300"
+                                            />
+                                            <div className="relative flex-1 w-full min-w-[5rem]">
+                                                <select
+                                                    value={trans.mode || '鉄道'}
+                                                    onChange={(e) => {
+                                                        const newTrans = [...tempEntry.transportations];
+                                                        const val = e.target.value;
+                                                        // from, to の取得と name の更新を削除
+                                                        newTrans[index] = { 
+                                                            ...newTrans[index], 
+                                                            mode: val
+                                                        };
+                                                        setTempEntry({ ...tempEntry, transportations: newTrans });
+                                                    }}
+                                                    className="w-full h-full p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm appearance-none font-medium text-slate-700 text-center"
+                                                >
+                                                    <option value="鉄道">鉄道</option>
+                                                    <option value="バス">バス</option>
+                                                    <option value="タクシー">タクシー</option>
+                                                    <option value="飛行機">飛行機</option>
+                                                    <option value="フェリー">フェリー</option>
+                                                    <option value="その他">その他</option>
+                                                </select>
+                                                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                                            </div>
+                                        </div>
+
+                                        {/* Row 2 */}
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                placeholder="降車場所"
+                                                value={trans.to || ''}
+                                                onChange={(e) => {
+                                                    const newTrans = [...tempEntry.transportations];
+                                                    const val = e.target.value;
+                                                    const from = newTrans[index].from || '';
+                                                    const mode = newTrans[index].mode || '鉄道';
+                                                    const newName = (from || val) ? `${from} → ${val}（${mode}）` : '';
+                                                    newTrans[index] = { 
+                                                        ...newTrans[index], 
+                                                        to: val,
+                                                        name: newName
+                                                    };
+                                                    setTempEntry({ ...tempEntry, transportations: newTrans });
+                                                }}
+                                                className="flex-[2] w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm placeholder:text-slate-300"
+                                            />
+                                            <input
+                                                type="number"
+                                                placeholder="運賃"
+                                                value={trans.cost}
+                                                onChange={(e) => {
+                                                    const newTrans = [...tempEntry.transportations];
+                                                    newTrans[index] = { ...newTrans[index], cost: e.target.value };
+                                                    setTempEntry({ ...tempEntry, transportations: newTrans });
+                                                }}
+                                                className="flex-1 w-full min-w-[5rem] p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
+                                            />
+                                        </div>
                                     </div>
-                                    ));
-                                })()}
+                                    );
+                                })}
                                 </div>
                             </div>
                         </div>
