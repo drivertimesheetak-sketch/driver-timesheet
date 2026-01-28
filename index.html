@@ -2703,16 +2703,25 @@
                                                     onChange={(e) => {
                                                         const newTrans = [...tempEntry.transportations];
                                                         const val = e.target.value;
-                                                        // from, to の取得と name の更新を削除
+                                                        
+                                                        const from = newTrans[index].from || '';
+                                                        const to = newTrans[index].to || '';
+                                                        const newName = (from || to) ? `${from} → ${to}（${val}）` : '';
+
                                                         newTrans[index] = { 
                                                             ...newTrans[index], 
-                                                            mode: val
+                                                            mode: val,
+                                                            name: newName
                                                         };
                                                         setTempEntry({ ...tempEntry, transportations: newTrans });
                                                     }}
                                                     className="w-full h-full p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm appearance-none font-medium text-slate-700 text-center"
                                                 >
-                                                    <option value="鉄道">鉄道</option>
+                                                    <option value="交通機関">交通機関</option>
+                                                    <option value="ＪＲ">ＪＲ</option>
+                                                    <option value="私鉄">私鉄</option>
+                                                    <option value="地下鉄">地下鉄</option>
+                                                    <option value="新幹線">新幹線</option>
                                                     <option value="バス">バス</option>
                                                     <option value="タクシー">タクシー</option>
                                                     <option value="飛行機">飛行機</option>
