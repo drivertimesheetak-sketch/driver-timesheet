@@ -2134,11 +2134,12 @@
                             )}
                             </div>
 
-                            {(isWorkType(entry.type) || entry.isHolidayWork) && (entry.isSiteStart || entry.isSiteEnd || entry.holidayWorkType || entry.isTempOvernight) && (
+                            {(isWorkType(entry.type) || entry.isHolidayWork) && (entry.isSiteStart || entry.isSiteEnd || entry.holidayWorkType || entry.isTempOvernight || entry.isDeemed) && (
                             <div className="flex items-center gap-2 text-xs flex-wrap">
                                 {entry.isSiteStart && <span className="bg-slate-600 text-white px-2 py-0.5 rounded-md shadow-sm">現出</span>}
                                 {entry.isSiteEnd && <span className="bg-slate-600 text-white px-2 py-0.5 rounded-md shadow-sm">現退</span>}
                                 {entry.isTempOvernight && <span className="bg-gray-500 text-white px-2 py-0.5 rounded-md shadow-sm">臨泊</span>}
+                                {entry.isDeemed && <span className="bg-slate-600 text-white px-2 py-0.5 rounded-md shadow-sm">みなし</span>}
                                 {entry.holidayWorkType === 'business_trip' && <span className="bg-lime-600 text-white px-2 py-0.5 rounded-md shadow-sm">出張</span>}
                                 {entry.holidayWorkType === '8overnight' && <span className="bg-blue-600 text-white px-2 py-0.5 rounded-md shadow-sm">泊り</span>}
                                 {entry.holidayWorkType === '8post_night' && <span className="bg-blue-600 text-white px-2 py-0.5 rounded-md shadow-sm">明け</span>}
@@ -2677,7 +2678,7 @@
                                     return (
                                     <div key={index} className="flex flex-col gap-2 p-2 bg-white/40 rounded-xl border border-amber-100/50">
                                         {/* Row 1 */}
-                                        <div className="flex gap-2">
+                                        <div className="grid grid-cols-3 gap-2">
                                             <input
                                                 type="text"
                                                 placeholder="乗車場所"
@@ -2695,9 +2696,9 @@
                                                     };
                                                     setTempEntry({ ...tempEntry, transportations: newTrans });
                                                 }}
-                                                className="flex-[2] w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm placeholder:text-slate-300"
+                                                className="col-span-2 w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm placeholder:text-slate-300"
                                             />
-                                            <div className="relative flex-1 w-full min-w-[5rem]">
+                                            <div className="relative col-span-1 w-full min-w-[5rem]">
                                                 <select
                                                     value={trans.mode || '鉄道'}
                                                     onChange={(e) => {
@@ -2734,7 +2735,7 @@
                                         </div>
 
                                         {/* Row 2 */}
-                                        <div className="flex gap-2">
+                                        <div className="grid grid-cols-3 gap-2">
                                             <input
                                                 type="text"
                                                 placeholder="降車場所"
@@ -2752,7 +2753,7 @@
                                                     };
                                                     setTempEntry({ ...tempEntry, transportations: newTrans });
                                                 }}
-                                                className="flex-[2] w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm placeholder:text-slate-300"
+                                                className="col-span-2 w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm placeholder:text-slate-300"
                                             />
                                             <input
                                                 type="number"
@@ -2763,7 +2764,7 @@
                                                     newTrans[index] = { ...newTrans[index], cost: e.target.value };
                                                     setTempEntry({ ...tempEntry, transportations: newTrans });
                                                 }}
-                                                className="flex-1 w-full min-w-[5rem] p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
+                                                className="col-span-1 w-full min-w-[5rem] p-3 text-sm bg-[#FFFDBE]/30 border border-transparent ring-2 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
                                             />
                                         </div>
                                     </div>
@@ -2814,7 +2815,7 @@
                                         newExps[index] = { ...newExps[index], cost: e.target.value };
                                         setTempEntry({ ...tempEntry, expenses: newExps });
                                         }}
-                                        className="flex-1 w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
+                                        className="flex-1 w-full min-w-0 p-3 text-sm bg-[#F3FAFE] border border-transparent ring-2 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
                                     />
                                     </div>
                                     ));
