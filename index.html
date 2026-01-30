@@ -632,8 +632,8 @@
         // 設定値 (passcodeを追加, 初期値8810)
         const [settings, setSettings] = useState({
             manualSubHolidays: 0,
-            medicalLeaveGrant: 0, // 医療休暇付与日数（デフォルト20）
-            passcode: '0000', // デフォルトパスワード
+            medicalLeaveGrant: 20, // 医療休暇付与日数（デフォルト20）
+            passcode: '8810', // デフォルトパスワード
             manualPaidLeaveDeduction: 0, // 追加: 有休手動減算
             manualCreativeLeaveDeduction: 0, // 追加: クリ休手動減算
             manualNursingLeaveDeduction: 0, // 追加: 看護休手動減算
@@ -2764,7 +2764,7 @@
                                                     newTrans[index] = { ...newTrans[index], cost: e.target.value };
                                                     setTempEntry({ ...tempEntry, transportations: newTrans });
                                                 }}
-                                                className="col-span-1 w-full min-w-[5rem] p-3 text-sm bg-[#FFFDBE]/30 border border-transparent ring-2 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
+                                                className="col-span-1 w-full min-w-[5rem] p-3 text-sm bg-[#FFFDBE]/35 border border-transparent ring-2 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
                                             />
                                         </div>
                                     </div>
@@ -2815,7 +2815,7 @@
                                         newExps[index] = { ...newExps[index], cost: e.target.value };
                                         setTempEntry({ ...tempEntry, expenses: newExps });
                                         }}
-                                        className="flex-1 w-full min-w-0 p-3 text-sm bg-[#F3FAFE] border border-transparent ring-2 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
+                                        className="flex-1 w-full min-w-0 p-3 text-sm bg-[#D1FEFF]/25 border border-transparent ring-2 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
                                     />
                                     </div>
                                     ));
