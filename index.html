@@ -1,5 +1,3 @@
---- START OF FILE index.html ---
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -341,7 +339,7 @@
             border: 'border-teal-50',
             icon: 'text-teal-500'
             },
-            '技研・その他': {
+            '技研': {
             header: 'bg-orange-50 text-orange-800 border-orange-100',
             item: 'hover:bg-orange-50 text-orange-700',
             border: 'border-orange-50',
@@ -657,30 +655,29 @@
         // 車両マスタ初期値
         const INITIAL_VEHICLES = {
             '緊急': [
-            'AK-32', 'AK-13', 'FP-1', 'FP-2', 'FP-3', 'FP-4', 'N-16',
-            'AHP-2', 'AHP-4', '支援車', 'AK-B1', 'SS-1', 'SS-2', 'SS-3',
-            'ミニキャブ', '小ルート', 'ランクル', '4161', '3792', '1082'
+                'AK-13', 'AK-32', 'AK-B1', 'AHP-2', 'AHP-4',
+                'FP-1', 'FP-2', 'FP-3', 'FP-4', 'N-16',
+                'SS-1', 'SS-2', 'SS-3', '4161', '3792', '1082',
+                '支援車', 'ミニキャブ', '小ルート', 'ランクル'
             ],
             '中継': [
-            'HC-3', 'HC-4', 'HC-5', 'HC-6',
-            '4K-1', '4K-5', 'AK-30', 'AK-35',
-            'Z-1', 'Z-2',
-            'AH-36', 'AH-37', 'AM-34', 'AH-71', 'AH-72',
-            'HA-1', 'HM-2', 'HVDR-1',
-            'R-1', 'EG-1', 'EG-2', 'RS-1', 'RS-2',
-            'A-1', '4K-2', '4K-3', '4K-4', 'SA-1',
-            '4K-SWC', 'SHC-4'
+                'A-1', 'AH-36', 'AH-37', 'AH-71', 'AH-72',
+                'AK-30', 'AK-35', 'AK-58', 'AM-34',
+                'EG-1', 'EG-2', 'HA-1', 'HC-3', 'HC-4', 'HC-5', 'HC-6',
+                'HM-2', 'HVDR-1', 'RS-1', 'RS-2', 'R-1',
+                'SA-1', 'SHC-4', 'Z-1', 'Z-2',
+                '4K-1', '4K-2', '4K-3', '4K-4', '4K-5', '4K-SWC'
             ],
             'NBC': [
-            'ミニバス660', 'ミニバス3016', 'ミニバス3272', 'ミニバス3276',
-            'ミニバス963', 'ミニバス1754', 'ミニバス2101', 'ミニバス2583',
-            '大ルート708', '大ルート500', '大ルート636'
+                'ミニバス660', 'ミニバス963', 'ミニバス1754', 'ミニバス2101', 'ミニバス2583',
+                'ミニバス3016', 'ミニバス3272', 'ミニバス3276',
+                '大ルート500', '大ルート636', '大ルート708', '大ルート'
             ],
             'NT': [
-            'T-2', 'S-1', 'S-2', '4K-OB1', 'Wakey号'
+                'S-1', 'S-2', 'T-2', '4K-OB1', 'Wakey号'
             ],
-            '技研・その他': [
-            'ハイエース', 'コースター', '広域車', 'レンタカー'
+            '技研': [
+                'ハイエース', 'コースター', '広域車', 'レンタカー'
             ]
         };
 
@@ -2766,7 +2763,7 @@
                                                     newTrans[index] = { ...newTrans[index], cost: e.target.value };
                                                     setTempEntry({ ...tempEntry, transportations: newTrans });
                                                 }}
-                                                className="col-span-1 w-full min-w-[5rem] p-3 text-sm bg-[#FFFDBE]/20 border border-transparent ring-2 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
+                                                className="col-span-1 w-full min-w-[5rem] p-3 text-sm bg-[#FFFDBE]/10 border border-transparent ring-2 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
                                             />
                                         </div>
                                     </div>
@@ -2817,7 +2814,7 @@
                                         newExps[index] = { ...newExps[index], cost: e.target.value };
                                         setTempEntry({ ...tempEntry, expenses: newExps });
                                         }}
-                                        className="flex-1 w-full min-w-0 p-3 text-sm bg-[#D1FEFF]/10 border border-transparent ring-2 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
+                                        className="flex-1 w-full min-w-0 p-3 text-sm bg-[#D1FEFF]/5 border border-transparent ring-2 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
                                     />
                                     </div>
                                     ));
