@@ -700,6 +700,8 @@
             vehicles: Array.from({ length: 5 }, () => ''),
             isDeemed: false, // 追加: みなしフラグ
             deemedTime: '', // 追加: みなし退勤時刻
+            isDetention: false, // 追加: 留置
+            isPickup: false, // 追加: 引取
         });
 
         // --- 定数定義 ---
@@ -1012,6 +1014,8 @@
                 isTempOvernight: workData[dateKey].isTempOvernight || false, // 追加
                 isDeemed: workData[dateKey].isDeemed || false, // 追加
                 deemedTime: workData[dateKey].deemedTime || '', // 追加
+                isDetention: workData[dateKey].isDetention || false, // 追加
+                isPickup: workData[dateKey].isPickup || false, // 追加
                 isHolidayWork: workData[dateKey].isHolidayWork || false,
                 holidayWorkType: workData[dateKey].holidayWorkType || null,
                 transportations: workData[dateKey].transportations 
@@ -1034,6 +1038,8 @@
                 isTempOvernight: false, // 追加
                 isDeemed: false, // 追加
                 deemedTime: '', // 追加
+                isDetention: false, // 追加
+                isPickup: false, // 追加
                 isHolidayWork: false,
                 holidayWorkType: null,
                 transportations: defaultTransportations,
@@ -1953,12 +1959,14 @@
                     </div>
                     {(isWorkType(entry.type) || entry.isHolidayWork) && (
                         <>
-                        {(entry.isSiteStart || entry.isSiteEnd || entry.isHolidayWork || entry.isTempOvernight) && (
+                        {(entry.isSiteStart || entry.isSiteEnd || entry.isHolidayWork || entry.isTempOvernight || entry.isDetention || entry.isPickup) && (
                             <div className="flex justify-center gap-0.5 flex-wrap w-full">
                             {entry.isHolidayWork && entry.type !== '8overnight' && entry.type !== '8post_night' && <span className="text-[9px] bg-red-600 text-white px-1 py-0.5 rounded-[3px] leading-tight whitespace-nowrap shadow-sm">休出</span>}
                             {entry.isSiteStart && <span className="text-[9px] bg-slate-600 text-white px-1 py-0.5 rounded-[3px] leading-tight whitespace-nowrap shadow-sm">現出</span>}
                             {entry.isSiteEnd && <span className="text-[9px] bg-slate-600 text-white px-1 py-0.5 rounded-[3px] leading-tight whitespace-nowrap shadow-sm">現退</span>}
                             {entry.isTempOvernight && <span className="text-[9px] bg-gray-500 text-white px-1 py-0.5 rounded-[3px] leading-tight whitespace-nowrap shadow-sm">臨泊</span>}
+                            {entry.isDetention && <span className="text-[9px] bg-slate-600 text-white px-1 py-0.5 rounded-[3px] leading-tight whitespace-nowrap shadow-sm">留置</span>}
+                            {entry.isPickup && <span className="text-[9px] bg-slate-600 text-white px-1 py-0.5 rounded-[3px] leading-tight whitespace-nowrap shadow-sm">引取</span>}
                             {entry.holidayWorkType === 'business_trip' && <span className="text-[9px] bg-lime-600 text-white px-1 py-0.5 rounded-[3px] leading-tight whitespace-nowrap shadow-sm">出張</span>}
                             {entry.holidayWorkType === '8overnight' && <span className="text-[9px] bg-blue-600 text-white px-1 py-0.5 rounded-[3px] leading-tight whitespace-nowrap shadow-sm">泊り</span>}
                             {entry.holidayWorkType === '8post_night' && <span className="text-[9px] bg-blue-600 text-white px-1 py-0.5 rounded-[3px] leading-tight whitespace-nowrap shadow-sm">明け</span>}
@@ -2133,12 +2141,14 @@
                             )}
                             </div>
 
-                            {(isWorkType(entry.type) || entry.isHolidayWork) && (entry.isSiteStart || entry.isSiteEnd || entry.holidayWorkType || entry.isTempOvernight || entry.isDeemed) && (
+                            {(isWorkType(entry.type) || entry.isHolidayWork) && (entry.isSiteStart || entry.isSiteEnd || entry.holidayWorkType || entry.isTempOvernight || entry.isDeemed || entry.isDetention || entry.isPickup) && (
                             <div className="flex items-center gap-2 text-xs flex-wrap">
                                 {entry.isSiteStart && <span className="bg-slate-600 text-white px-2 py-0.5 rounded-md shadow-sm">現出</span>}
                                 {entry.isSiteEnd && <span className="bg-slate-600 text-white px-2 py-0.5 rounded-md shadow-sm">現退</span>}
                                 {entry.isTempOvernight && <span className="bg-gray-500 text-white px-2 py-0.5 rounded-md shadow-sm">臨泊</span>}
                                 {entry.isDeemed && <span className="bg-slate-600 text-white px-2 py-0.5 rounded-md shadow-sm">みなし</span>}
+                                {entry.isDetention && <span className="bg-slate-600 text-white px-2 py-0.5 rounded-md shadow-sm">留置</span>}
+                                {entry.isPickup && <span className="bg-slate-600 text-white px-2 py-0.5 rounded-md shadow-sm">引取</span>}
                                 {entry.holidayWorkType === 'business_trip' && <span className="bg-lime-600 text-white px-2 py-0.5 rounded-md shadow-sm">出張</span>}
                                 {entry.holidayWorkType === '8overnight' && <span className="bg-blue-600 text-white px-2 py-0.5 rounded-md shadow-sm">泊り</span>}
                                 {entry.holidayWorkType === '8post_night' && <span className="bg-blue-600 text-white px-2 py-0.5 rounded-md shadow-sm">明け</span>}
@@ -2763,7 +2773,7 @@
                                                     newTrans[index] = { ...newTrans[index], cost: e.target.value };
                                                     setTempEntry({ ...tempEntry, transportations: newTrans });
                                                 }}
-                                                className="col-span-1 w-full min-w-[5rem] p-3 text-sm bg-[#FFFDBE]/15 border border-transparent ring-2 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
+                                                className="col-span-1 w-full min-w-[5rem] p-3 text-sm bg-[#FFFDBE]/25 border border-transparent ring-2 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
                                             />
                                         </div>
                                     </div>
@@ -2814,7 +2824,7 @@
                                         newExps[index] = { ...newExps[index], cost: e.target.value };
                                         setTempEntry({ ...tempEntry, expenses: newExps });
                                         }}
-                                        className="flex-1 w-full min-w-0 p-3 text-sm bg-[#D1FEFF]/15 border border-transparent ring-2 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
+                                        className="flex-1 w-full min-w-0 p-3 text-sm bg-[#D1FEFF]/25 border border-transparent ring-2 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none text-right shadow-sm placeholder:text-slate-300"
                                     />
                                     </div>
                                     ));
@@ -2827,6 +2837,7 @@
                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">
                             <MapPin size={12}/> 出退勤状況 / 予定外宿泊
                             </label>
+                            <div className="flex flex-col gap-3">
                             <div className="flex gap-3">
                             <button
                                 onClick={() => setTempEntry(prev => ({ ...prev, isSiteStart: !prev.isSiteStart }))}
@@ -2859,6 +2870,28 @@
                                 {tempEntry.isTempOvernight && <CheckCircle2 size={16} />}
                                 臨泊
                             </button>
+                            </div>
+                            <div className="flex gap-3">
+                            <button
+                                onClick={() => setTempEntry(prev => ({ ...prev, isDetention: !prev.isDetention }))}
+                                className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all border flex items-center justify-center gap-2 shadow-sm
+                                ${tempEntry.isDetention
+                                    ? 'bg-slate-700 text-white border-slate-700 shadow-lg shadow-slate-500/30'
+                                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                            >
+                                {tempEntry.isDetention && <CheckCircle2 size={16} />}
+                                留置
+                            </button>
+                            <button
+                                onClick={() => setTempEntry(prev => ({ ...prev, isPickup: !prev.isPickup }))}
+                                className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all border flex items-center justify-center gap-2 shadow-sm
+                                ${tempEntry.isPickup
+                                    ? 'bg-slate-700 text-white border-slate-700 shadow-lg shadow-slate-500/30'
+                                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                            >
+                                {tempEntry.isPickup && <CheckCircle2 size={16} />}
+                                引取
+                            </button>
                             {/* 追加ボタン */}
                             {!tempEntry.isHolidayWork && (
                             <button
@@ -2872,6 +2905,7 @@
                                 みなし
                             </button>
                             )}
+                            </div>
                             </div>
                             
                             {/* 追加時刻入力 */}
