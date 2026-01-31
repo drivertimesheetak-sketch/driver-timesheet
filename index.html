@@ -2714,13 +2714,19 @@
                                                         const newTrans = [...tempEntry.transportations];
                                                         const val = e.target.value;
                                                         
-                                                        const from = newTrans[index].from || '';
+                                                        let from = newTrans[index].from || '';
+                                                        // 既存のnameがあり、かつfrom/toが未設定の場合（インポートデータ等）、nameをfromとして扱う
+                                                        if (!from && newTrans[index].name && !newTrans[index].to) {
+                                                            from = newTrans[index].name;
+                                                        }
+
                                                         const to = newTrans[index].to || '';
                                                         const newName = (from || to) ? `${from} → ${to}（${val}）` : '';
 
                                                         newTrans[index] = { 
                                                             ...newTrans[index], 
                                                             mode: val,
+                                                            from: from,
                                                             name: newName
                                                         };
                                                         setTempEntry({ ...tempEntry, transportations: newTrans });
