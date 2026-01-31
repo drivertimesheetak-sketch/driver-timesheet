@@ -144,9 +144,12 @@
         }, [onClose]);
 
         return (
-            <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-[100] flex items-center gap-3 px-6 py-3.5 rounded-2xl shadow-soft text-sm font-medium toast-slide-down backdrop-blur-md border border-white/20
-            ${type === 'error' ? 'bg-red-500/90 text-white' : 'bg-slate-800/90 text-white'}
-            `}>
+            <div 
+                className={`fixed left-1/2 transform -translate-x-1/2 z-[3000] flex items-center gap-3 px-6 py-3.5 rounded-2xl shadow-soft text-sm font-medium toast-slide-down backdrop-blur-md border border-white/20
+                ${type === 'error' ? 'bg-red-500/90 text-white' : 'bg-slate-800/90 text-white'}
+                `}
+                style={{ top: 'calc(1.5rem + env(safe-area-inset-top))' }}
+            >
             {type === 'error' ? <AlertCircle size={18} /> : <Info size={18} />}
             {message}
             </div>
@@ -393,14 +396,14 @@
 
             {/* モーダル形式のドロップダウン (z-indexを高くして最前面表示) */}
             {isOpen && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 animate-in fade-in duration-200">
                 {/* 背景オーバーレイ */}
                 <div 
                     className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" 
                     onClick={() => setIsOpen(false)}
                 />
                 {/* リスト本体 */}
-                <div className="relative bg-white w-full max-w-sm max-h-[70vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ring-1 ring-black/5">
+                <div className="relative bg-white w-full max-w-sm max-h-[70vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ring-1 ring-black/5" onClick={(e) => e.stopPropagation()}>
                     <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center shrink-0 backdrop-blur-sm">
                     <h4 className="font-bold text-slate-700 flex items-center gap-2">
                         <Truck size={18} className="text-green-600"/>
@@ -452,8 +455,8 @@
         const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
         if (!isOpen) return null;
         return (
-            <div className="fixed inset-0 bg-slate-900/50 z-[120] flex items-center justify-center animation-fade-in p-6 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-xs rounded-3xl shadow-2xl overflow-hidden p-6 text-center ring-1 ring-white/20">
+            <div className="fixed inset-0 bg-slate-900/50 z-[2500] flex items-center justify-center animation-fade-in p-6 backdrop-blur-sm">
+            <div className="bg-white w-full max-w-xs rounded-3xl shadow-2xl overflow-hidden p-6 text-center ring-1 ring-white/20" onClick={(e) => e.stopPropagation()}>
                 <div className="mx-auto w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mb-4 shadow-sm">
                 <AlertCircle className="text-red-500" size={28} />
                 </div>
@@ -518,7 +521,7 @@
         if (!isOpen) return null;
 
         return (
-            <div className="fixed inset-0 z-[150] bg-slate-900/40 backdrop-blur-sm flex items-end justify-center sm:items-center animation-fade-in" onClick={onClose}>
+            <div className="fixed inset-0 z-[2600] bg-slate-900/40 backdrop-blur-sm flex items-end justify-center sm:items-center animation-fade-in" onClick={onClose}>
             <div className="bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col ring-1 ring-black/5" onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur-md">
@@ -2373,8 +2376,8 @@
 
             {/* Input Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-end sm:items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
-                <div className={`w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-colors duration-300 bg-white ring-1 ring-white/20`}>
+                <div className="fixed inset-0 bg-slate-900/40 z-[1000] flex items-end sm:items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
+                <div className={`w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-colors duration-300 bg-white ring-1 ring-white/20`} onClick={(e) => e.stopPropagation()}>
                     <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white/50 backdrop-blur-md">
                     <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2 tracking-tight">
                         {selectedDate && (() => {
@@ -2946,7 +2949,7 @@
                     )}
                     </div>
 
-                    <div className="p-4 border-t border-slate-100 bg-white flex gap-3 shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)] z-20">
+                    <div className="p-4 border-t border-slate-100 bg-white flex gap-3 shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)] z-20" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
                     <button
                         onClick={handleDelete}
                         className="p-4 text-red-500 bg-red-50 hover:bg-red-100 rounded-2xl flex items-center justify-center transition-colors"
@@ -2968,8 +2971,8 @@
 
             {/* Vehicle Settings Modal */}
             {isVehicleSettingsOpen && (
-                <div className="fixed inset-0 bg-slate-900/50 z-[60] flex items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
-                <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                <div className="fixed inset-0 bg-slate-900/50 z-[1100] flex items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
+                <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
                     <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="font-bold text-lg flex items-center gap-2 text-slate-700">
                         <Truck size={20} />
@@ -3026,7 +3029,7 @@
                         </div>
                     ))}
                     </div>
-                    <div className="p-3 bg-slate-50 border-t border-slate-100 text-center">
+                    <div className="p-3 bg-slate-50 border-t border-slate-100 text-center" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
                     <button onClick={() => setIsVehicleSettingsOpen(false)} className="bg-white border border-slate-200 text-sm font-bold px-6 py-2.5 rounded-xl shadow-sm hover:bg-slate-50">
                         閉じる
                     </button>
@@ -3037,8 +3040,8 @@
 
             {/* Summary Modal */}
             {isSummaryModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/50 z-[80] flex items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
-                <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="fixed inset-0 bg-slate-900/50 z-[1200] flex items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
+                <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
                     <div className="p-4 border-b border-slate-100 bg-white">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800">
@@ -3447,7 +3450,7 @@
                     )}
                     </div>
 
-                    <div className="p-4 bg-white border-t border-slate-100 mt-auto shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)]">
+                    <div className="p-4 bg-white border-t border-slate-100 mt-auto shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)]" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
                     <button
                         onClick={() => setIsSummaryModalOpen(false)}
                         className="w-full bg-slate-100 border border-slate-200 text-slate-700 font-bold py-3.5 rounded-2xl hover:bg-slate-200 shadow-sm transition-colors"
@@ -3461,8 +3464,8 @@
 
             {/* Config Modal */}
             {isConfigModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/50 z-[90] flex items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
-                <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="fixed inset-0 bg-slate-900/50 z-[1300] flex items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
+                <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
                     <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800">
                         <Settings size={20} />
@@ -3808,7 +3811,7 @@
 
                     </div>
 
-                    <div className="p-4 bg-white border-t border-slate-100 flex justify-center shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)]">
+                    <div className="p-4 bg-white border-t border-slate-100 flex justify-center shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)]" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
                         <button
                             onClick={() => setIsConfigModalOpen(false)}
                             className="w-full py-3.5 bg-slate-100 border border-slate-200 text-slate-700 font-bold rounded-2xl hover:bg-slate-200 shadow-sm transition-colors"
@@ -3822,8 +3825,8 @@
 
             {/* Welcome Modal (New Feature) */}
             {isWelcomeModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/60 z-[120] flex items-center justify-center animation-fade-in p-6 backdrop-blur-md">
-                    <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden p-8 flex flex-col items-center ring-1 ring-white/20">
+                <div className="fixed inset-0 bg-slate-900/60 z-[1400] flex items-center justify-center animation-fade-in p-6 backdrop-blur-md">
+                    <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden p-8 flex flex-col items-center ring-1 ring-white/20" onClick={(e) => e.stopPropagation()}>
                         
                         {/* タイトル追加 (修正: ネガティブマージンで上部に吸着、背景色追加) */}
                         <div className="flex flex-col items-center mb-6 w-[calc(100%+4rem)] -mx-8 -mt-8 pt-8 pb-6 border-b border-slate-100 bg-slate-50/80">
