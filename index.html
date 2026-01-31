@@ -834,6 +834,21 @@
 
         // --- Effects (Persistence) ---
         useEffect(() => {
+            const hasOpenModal = isModalOpen || isSummaryModalOpen || isVehicleSettingsOpen || 
+                               isConfigModalOpen || isWelcomeModalOpen || isDatePickerOpen || 
+                               !!dateToDelete || !!deleteConfirmation;
+            
+            if (hasOpenModal) {
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = '';
+            }
+            return () => {
+                document.body.style.overflow = '';
+            };
+        }, [isModalOpen, isSummaryModalOpen, isVehicleSettingsOpen, isConfigModalOpen, isWelcomeModalOpen, isDatePickerOpen, dateToDelete, deleteConfirmation]);
+
+        useEffect(() => {
             // データ読み込み処理
             const loadData = () => {
             try {
