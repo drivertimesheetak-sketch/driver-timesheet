@@ -278,7 +278,7 @@
 
         const handleMChange = (e) => {
             const newM = e.target.value;
-            onChange(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+            onChange(`${String(h).padStart(2, '0')}:${String(newM).padStart(2, '0')}`);
         };
 
         return (
@@ -2413,7 +2413,7 @@
                     {/* Type Selection */}
                     <div>
                         <div className="text-slate-500 text-center py-2 mb-2 font-bold text-xs tracking-wider uppercase border-b border-slate-100">
-                            勤務・休暇を選択
+                             勤務・休暇 を選択 
                         </div>
                         
                         {/* 勤務グループ */}
