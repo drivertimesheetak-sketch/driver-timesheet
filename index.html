@@ -2706,8 +2706,10 @@
                                         <div className="grid grid-cols-3 gap-2">
                                             <input
                                                 type="text"
+                                                autoComplete="off"
                                                 placeholder="乗車場所"
                                                 value={trans.from || (trans.name && !trans.to ? trans.name : '') || ''} // Fallback to name if generic
+                                                onClick={(e) => e.stopPropagation()}
                                                 onChange={(e) => {
                                                     const newTrans = [...tempEntry.transportations];
                                                     const val = e.target.value;
@@ -2721,7 +2723,7 @@
                                                     };
                                                     setTempEntry({ ...tempEntry, transportations: newTrans });
                                                 }}
-                                                className="col-span-2 w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm placeholder:text-slate-300"
+                                                className="relative z-20 cursor-text col-span-2 w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm placeholder:text-slate-300"
                                             />
                                             <div className="relative col-span-1 w-full min-w-[5rem]">
                                                 <select
@@ -2769,8 +2771,10 @@
                                         <div className="grid grid-cols-3 gap-2">
                                             <input
                                                 type="text"
+                                                autoComplete="off"
                                                 placeholder="降車場所"
                                                 value={trans.to || ''}
+                                                onClick={(e) => e.stopPropagation()}
                                                 onChange={(e) => {
                                                     const newTrans = [...tempEntry.transportations];
                                                     const val = e.target.value;
@@ -2784,19 +2788,21 @@
                                                     };
                                                     setTempEntry({ ...tempEntry, transportations: newTrans });
                                                 }}
-                                                className="col-span-2 w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm placeholder:text-slate-300"
+                                                className="relative z-20 cursor-text col-span-2 w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm placeholder:text-slate-300"
                                             />
                                             <input
                                                 type="text"
                                                 inputMode="numeric"
+                                                autoComplete="off"
                                                 placeholder="運賃"
                                                 value={trans.cost}
+                                                onClick={(e) => e.stopPropagation()}
                                                 onChange={(e) => {
                                                     const newTrans = [...tempEntry.transportations];
                                                     newTrans[index] = { ...newTrans[index], cost: e.target.value };
                                                     setTempEntry({ ...tempEntry, transportations: newTrans });
                                                 }}
-                                                className="col-span-1 w-full min-w-[5rem] p-3 text-sm bg-[#FFFDBE]/20 border border-transparent ring-2 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none text-center shadow-sm placeholder:text-slate-300"
+                                                className="relative z-20 cursor-text col-span-1 w-full min-w-[5rem] p-3 text-sm bg-[#FFFDBE]/20 border border-transparent ring-2 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none text-center shadow-sm placeholder:text-slate-300"
                                             />
                                         </div>
                                     </div>
@@ -2829,26 +2835,30 @@
                                     <div key={index} className="flex gap-2">
                                     <input
                                         type="text"
+                                        autoComplete="off"
                                         placeholder={`立替内容 ${index + 1}`}
                                         value={exp.name}
+                                        onClick={(e) => e.stopPropagation()}
                                         onChange={(e) => {
                                         const newExps = [...tempEntry.expenses];
                                         newExps[index] = { ...newExps[index], name: e.target.value };
                                         setTempEntry({ ...tempEntry, expenses: newExps });
                                         }}
-                                        className="flex-[2] w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none shadow-sm placeholder:text-slate-300"
+                                        className="relative z-20 cursor-text flex-[2] w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none shadow-sm placeholder:text-slate-300"
                                     />
                                     <input
                                         type="text"
                                         inputMode="numeric"
+                                        autoComplete="off"
                                         placeholder="金額"
                                         value={exp.cost}
+                                        onClick={(e) => e.stopPropagation()}
                                         onChange={(e) => {
                                         const newExps = [...tempEntry.expenses];
                                         newExps[index] = { ...newExps[index], cost: e.target.value };
                                         setTempEntry({ ...tempEntry, expenses: newExps });
                                         }}
-                                        className="flex-1 w-full min-w-0 p-3 text-sm bg-[#D1FEFF]/20 border border-transparent ring-2 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none text-center shadow-sm placeholder:text-slate-300"
+                                        className="relative z-20 cursor-text flex-1 w-full min-w-0 p-3 text-sm bg-[#D1FEFF]/20 border border-transparent ring-2 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none text-center shadow-sm placeholder:text-slate-300"
                                     />
                                     </div>
                                     ));
@@ -3665,8 +3675,6 @@
                                 <p className="mb-2 font-bold text-blue-900" style={{ fontSize: '1.2em' }}>設定する日数は「20日」から「3月31日時点の残日数」を差し引いた値となります。</p>
                                 <p className="mb-2 font-bold text-blue-900" style={{ fontSize: '1.2em' }}>（例）3月31日時点の残日数が17日の場合、『 20 − 17 ＝ 3 』 となるため、有給休暇調整は「-3」で設定してください。</p>
                                 <div className="pl-4 text-slate-500 space-y-1 mt-2 border-t border-yellow-200/50 pt-2 border-dashed font-medium">
-                                    <p>※本設定は、①のアプリ使用開始時及び ②の翌年度の４月１日のみ実施してください ➂は必要に応じて「②」の後に実施してください</p>
-                                    <p>※来年度４月１日以降の残日数は自動的に表示されます</p>
                                 </div>
                             </div>
                             
