@@ -1501,6 +1501,12 @@
             let totalTempOvernight = 0; // 追加
             let totalTransportCost = 0;
             let totalExpenseCost = 0;
+            const transportBreakdown = {
+                '交通機関': 0, 'ＪＲ': 0, '私鉄': 0, '地下鉄': 0, '新幹線': 0, '特急料金': 0, 'バス': 0, 'タクシー': 0, '飛行機': 0, 'フェリー': 0, 'その他': 0
+            };
+            const expenseBreakdown = {
+                '宿泊': 0, '駐車場': 0, 'ガソリン': 0, '軽油': 0, 'アドブルー': 0, '有料道路': 0, 'その他': 0
+            };
             const counts = {};
             const vehicleCounts = {};
             WORK_TYPES.forEach(t => counts[t.id] = 0);
@@ -1586,14 +1592,23 @@
                 // 交通費集計
                 if (entry.transportations) {
                     entry.transportations.forEach(t => {
-                        totalTransportCost += parseInt(t.cost, 10) || 0;
+                        const cost = parseInt(t.cost, 10) || 0;
+                        totalTransportCost += cost;
+                        const mode = t.mode || '交通機関';
+                        if (transportBreakdown.hasOwnProperty(mode)) {
+                            transportBreakdown[mode] += cost;
+                        }
                     });
                 }
 
                 // 立替費集計
                 if (entry.expenses) {
                     entry.expenses.forEach(e => {
-                        totalExpenseCost += parseInt(e.cost, 10) || 0;
+                        const cost = parseInt(e.cost, 10) || 0;
+                        totalExpenseCost += cost;
+                        if (e.name && expenseBreakdown.hasOwnProperty(e.name)) {
+                            expenseBreakdown[e.name] += cost;
+                        }
                     });
                 }
 
@@ -1638,7 +1653,9 @@
             total8PostNight,
             totalTempOvernight, // 追加
             totalTransportCost,
+            transportBreakdown,
             totalExpenseCost,
+            expenseBreakdown,
             counts,
             vehicleCounts
             };
@@ -2868,19 +2885,28 @@
 
                                     return tempEntry.expenses.slice(0, visibleLimit).map((exp, index) => (
                                     <div key={index} className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        autoComplete="off"
-                                        placeholder={`立替内容 ${index + 1}`}
-                                        value={exp.name}
-                                        onClick={(e) => e.stopPropagation()}
-                                        onChange={(e) => {
-                                        const newExps = [...tempEntry.expenses];
-                                        newExps[index] = { ...newExps[index], name: e.target.value };
-                                        setTempEntry({ ...tempEntry, expenses: newExps });
-                                        }}
-                                        className="relative z-20 cursor-text flex-[2] w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none shadow-sm placeholder:text-slate-300"
-                                    />
+                                    <div className="relative flex-[2]">
+                                        <select
+                                            value={exp.name}
+                                            onClick={(e) => e.stopPropagation()}
+                                            onChange={(e) => {
+                                            const newExps = [...tempEntry.expenses];
+                                            newExps[index] = { ...newExps[index], name: e.target.value };
+                                            setTempEntry({ ...tempEntry, expenses: newExps });
+                                            }}
+                                            className="w-full p-3 text-sm bg-white border border-transparent ring-1 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none shadow-sm appearance-none"
+                                        >
+                                            <option value="">選択してください</option>
+                                            <option value="宿泊">宿泊</option>
+                                            <option value="駐車場">駐車場</option>
+                                            <option value="ガソリン">ガソリン</option>
+                                            <option value="軽油">軽油</option>
+                                            <option value="アドブルー">アドブルー</option>
+                                            <option value="有料道路">有料道路</option>
+                                            <option value="その他">その他</option>
+                                        </select>
+                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                                    </div>
                                     <input
                                         type="text"
                                         inputMode="numeric"
@@ -3032,7 +3058,7 @@
             {/* Vehicle Settings Modal */}
             {isVehicleSettingsOpen && (
                 <div className="fixed inset-0 bg-slate-900/50 z-[1100] flex items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
-                <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+                <div className="bg-white w-full max-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
                     <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="font-bold text-lg flex items-center gap-2 text-slate-700">
                         <Truck size={20} />
@@ -3345,24 +3371,44 @@
                         {isCostSummaryOpen && (
                         <div className="mt-2 bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden animate-in slide-in-from-top-2 fade-in duration-200">
                             <div className="p-4 space-y-3">
-                                <div className="flex justify-between items-center p-4 bg-orange-50/50 rounded-xl border border-orange-100">
-                                    <div className="flex items-center gap-2 text-orange-800">
-                                        <Train size={16}/>
-                                        <span className="font-bold text-sm">交通費</span>
+                                <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div className="flex items-center gap-2 text-orange-800">
+                                            <Train size={16}/>
+                                            <span className="font-bold text-sm">交通費</span>
+                                        </div>
+                                        <span className="font-mono font-bold text-lg text-orange-900">
+                                            ¥{currentReportSummary.totalTransportCost.toLocaleString()}
+                                        </span>
                                     </div>
-                                    <span className="font-mono font-bold text-lg text-orange-900">
-                                        ¥{currentReportSummary.totalTransportCost.toLocaleString()}
-                                    </span>
+                                    <div className="space-y-1 pl-6">
+                                        {Object.entries(currentReportSummary.transportBreakdown).filter(([key]) => key !== '交通機関').map(([key, val]) => (
+                                            <div key={key} className="flex justify-between text-[11px] text-orange-700 font-medium">
+                                                <span>{key}</span>
+                                                <span>¥{val.toLocaleString()}</span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                                 
-                                <div className="flex justify-between items-center p-4 bg-cyan-50/50 rounded-xl border border-cyan-100">
-                                    <div className="flex items-center gap-2 text-cyan-800">
-                                        <Receipt size={16}/>
-                                        <span className="font-bold text-sm">立替費</span>
+                                <div className="p-4 bg-cyan-50/50 rounded-xl border border-cyan-100">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div className="flex items-center gap-2 text-cyan-800">
+                                            <Receipt size={16}/>
+                                            <span className="font-bold text-sm">立替費</span>
+                                        </div>
+                                        <span className="font-mono font-bold text-lg text-cyan-900">
+                                            ¥{currentReportSummary.totalExpenseCost.toLocaleString()}
+                                        </span>
                                     </div>
-                                    <span className="font-mono font-bold text-lg text-cyan-900">
-                                        ¥{currentReportSummary.totalExpenseCost.toLocaleString()}
-                                    </span>
+                                    <div className="space-y-1 pl-6">
+                                        {Object.entries(currentReportSummary.expenseBreakdown).map(([key, val]) => (
+                                            <div key={key} className="flex justify-between text-[11px] text-cyan-700 font-medium">
+                                                <span>{key}</span>
+                                                <span>¥{val.toLocaleString()}</span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
 
                                 <div className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100 mt-2">
