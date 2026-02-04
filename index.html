@@ -1185,6 +1185,7 @@
             '日付', '曜日', '勤務区分', '開始時間', '終了時間',
             '勤務パターン', '備考', '現出', '現退',
             '休日出勤', '休出タイプ',
+            '臨時宿泊', 'みなし', 'みなし時間', '留置', '引取',
             '車両1', '車両2', '車両3', '車両4', '車両5',
             // 交通費詳細 (10件分)
             '交通費1内容', '交通費1金額',
@@ -1255,6 +1256,11 @@
                 entry.isSiteEnd ? '〇' : '',
                 entry.isHolidayWork ? '〇' : '',
                 escape(holidayWorkTypeLabel),
+                entry.isTempOvernight ? '〇' : '',
+                entry.isDeemed ? '〇' : '',
+                escape(entry.deemedTime),
+                entry.isDetention ? '〇' : '',
+                entry.isPickup ? '〇' : '',
                 escape(vehicles[0] || ''),
                 escape(vehicles[1] || ''),
                 escape(vehicles[2] || ''),
@@ -1287,36 +1293,56 @@
             const reader = new FileReader();
             reader.onload = (e) => {
             const text = e.target.result;
-            const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
-            if (lines.length < 2) return; // ヘッダーのみまたは空の場合
+            
+            // CSVパース用の堅牢な関数（クォート内の改行を考慮）
+            const parseCSVText = (csvText) => {
+                const rows = [];
+                let currentRow = [];
+                let currentField = '';
+                let inQuotes = false;
+                for (let i = 0; i < csvText.length; i++) {
+                    const char = csvText[i];
+                    const nextChar = csvText[i + 1];
+                    if (inQuotes) {
+                        if (char === '"' && nextChar === '"') {
+                            currentField += '"';
+                            i++;
+                        } else if (char === '"') {
+                            inQuotes = false;
+                        } else {
+                            currentField += char;
+                        }
+                    } else {
+                        if (char === '"') {
+                            inQuotes = true;
+                        } else if (char === ',') {
+                            currentRow.push(currentField);
+                            currentField = '';
+                        } else if (char === '\r' || char === '\n') {
+                            if (currentField !== '' || currentRow.length > 0) {
+                                currentRow.push(currentField);
+                                rows.push(currentRow);
+                            }
+                            currentRow = [];
+                            currentField = '';
+                            if (char === '\r' && nextChar === '\n') i++;
+                        } else {
+                            currentField += char;
+                        }
+                    }
+                }
+                if (currentField !== '' || currentRow.length > 0) {
+                    currentRow.push(currentField);
+                    rows.push(currentRow);
+                }
+                return rows;
+            };
+
+            const allRows = parseCSVText(text);
+            if (allRows.length < 2) return;
 
             const newWorkData = { ...workData };
             let importCount = 0;
-
-            // CSV行パース関数（ダブルクォート考慮）
-            const parseCSVLine = (line) => {
-                const result = [];
-                let startValueIndex = 0;
-                let inQuotes = false;
-                for (let i = 0; i < line.length; i++) {
-                if (line[i] === '"') {
-                    inQuotes = !inQuotes;
-                } else if (line[i] === ',' && !inQuotes) {
-                    let val = line.substring(startValueIndex, i);
-                    if (val.startsWith('"') && val.endsWith('"')) {
-                    val = val.slice(1, -1).replace(/""/g, '"');
-                    }
-                    result.push(val);
-                    startValueIndex = i + 1;
-                }
-                }
-                let val = line.substring(startValueIndex);
-                if (val.startsWith('"') && val.endsWith('"')) {
-                val = val.slice(1, -1).replace(/""/g, '"');
-                }
-                result.push(val);
-                return result;
-            };
 
             // ラベル逆引きヘルパー
             const getTypeIdByLabel = (label) => WORK_TYPES.find(t => t.label === label)?.id || 'work';
@@ -1324,17 +1350,15 @@
             const getHolidayTypeIdByLabel = (label) => HOLIDAY_OPTIONS.find(o => o.label === label)?.id || null;
 
             // データ行の処理（1行目はヘッダーなのでスキップ）
-            for (let i = 1; i < lines.length; i++) {
+            for (let i = 1; i < allRows.length; i++) {
                 try {
-                const cols = parseCSVLine(lines[i]);
-                // 最小限のカラム数チェック
+                const cols = allRows[i];
                 if (cols.length < 1) continue; 
 
                 const dateKey = (cols[0] || '').trim();
-                // 日付形式チェック (YYYY-MM-DD)
                 if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) continue;
 
-                // 各カラムの取得
+                // 各カラムの取得 (新しいインデックス)
                 const typeLabel = cols[2];
                 const startTime = cols[3];
                 const endTime = cols[4];
@@ -1344,51 +1368,59 @@
                 const isSiteEnd = cols[8] === '〇';
                 const isHolidayWork = cols[9] === '〇';
                 const holidayWorkTypeLabel = cols[10];
-                const vehicle1 = cols[11];
-                const vehicle2 = cols[12];
-                const vehicle3 = cols[13];
-                const vehicle4 = cols[14];
-                const vehicle5 = cols[15];
+                
+                // 新しいフラグを検知 (現在のフォーマット = 61列)
+                const isNewFormat = cols.length >= 61;
+                const vOffset = isNewFormat ? 5 : 0; // 車両以降のインデックスをずらす
 
-                let transportations = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
+                const isTempOvernight = isNewFormat ? cols[11] === '〇' : false;
+                const isDeemed = isNewFormat ? cols[12] === '〇' : false;
+                const deemedTime = isNewFormat ? cols[13] : '';
+                const isDetention = isNewFormat ? cols[14] === '〇' : false;
+                const isPickup = isNewFormat ? cols[15] === '〇' : false;
+
+                const vehicle1 = cols[11 + vOffset];
+                const vehicle2 = cols[12 + vOffset];
+                const vehicle3 = cols[13 + vOffset];
+                const vehicle4 = cols[14 + vOffset];
+                const vehicle5 = cols[15 + vOffset];
+
+                let transportations = Array.from({ length: 10 }, () => ({ name: '', cost: '', from: '', to: '', mode: '交通機関' }));
                 let expenses = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
 
-                // 新フォーマット判定 (詳細列がある場合)
-                if (cols.length >= 36) {
-                    // 列数から行数を推測、あるいは56列以上なら10行版として扱う
-                    const isTenRows = cols.length >= 56;
-                    const rowsToRead = isTenRows ? 10 : 5;
+                const tStart = 16 + vOffset;
+                if (cols.length >= tStart + 10) {
+                    const rowsToRead = cols.length >= (tStart + 40) ? 10 : 5;
                     
-                    // 交通費詳細の読み込み
                     for (let j = 0; j < rowsToRead; j++) {
-                    transportations[j] = {
-                        name: cols[16 + j * 2] || '',
-                        cost: cols[17 + j * 2] || ''
-                    };
+                        const rawName = cols[tStart + j * 2] || '';
+                        const cost = cols[tStart + 1 + j * 2] || '';
+                        
+                        // nameからfrom, to, modeを復元
+                        let from = '', to = '', mode = '交通機関';
+                        if (rawName.includes(' → ') && rawName.includes('（')) {
+                            const parts = rawName.split(' → ');
+                            from = parts[0];
+                            const sub = parts[1].split('（');
+                            to = sub[0];
+                            mode = sub[1]?.replace('）', '') || '交通機関';
+                        } else {
+                            from = rawName;
+                        }
+
+                        transportations[j] = { name: rawName, cost, from, to, mode };
                     }
                     
-                    // 立替費詳細の読み込み
-                    const expenseStartIndex = 16 + (rowsToRead * 2);
+                    const eStart = tStart + (rowsToRead * 2);
                     for (let j = 0; j < rowsToRead; j++) {
-                    expenses[j] = {
-                        name: cols[expenseStartIndex + j * 2] || '',
-                        cost: cols[expenseStartIndex + 1 + j * 2] || ''
-                    };
-                    }
-                } else if (cols.length >= 18) {
-                    // 旧フォーマット (合計のみ) の場合のフォールバック処理
-                    const totalTransport = parseInt(cols[16], 10) || 0;
-                    const totalExpense = parseInt(cols[17], 10) || 0;
-                    if (totalTransport > 0) {
-                    transportations[0] = { name: 'CSV取込', cost: totalTransport };
-                    }
-                    if (totalExpense > 0) {
-                    expenses[0] = { name: 'CSV取込', cost: totalExpense };
+                        expenses[j] = {
+                            name: cols[eStart + j * 2] || '',
+                            cost: cols[eStart + 1 + j * 2] || ''
+                        };
                     }
                 }
 
-                // データ構築
-                const entry = {
+                newWorkData[dateKey] = {
                     startTime,
                     endTime,
                     type: getTypeIdByLabel(typeLabel),
@@ -1398,12 +1430,16 @@
                     isSiteEnd,
                     isHolidayWork,
                     holidayWorkType: getHolidayTypeIdByLabel(holidayWorkTypeLabel),
+                    isTempOvernight,
+                    isDeemed,
+                    deemedTime,
+                    isDetention,
+                    isPickup,
                     vehicles: [vehicle1, vehicle2, vehicle3, vehicle4, vehicle5].map(v => v || ''),
                     transportations,
                     expenses,
                 };
 
-                newWorkData[dateKey] = entry;
                 importCount++;
                 } catch (err) {
                 console.error('Import error at line ' + i, err);
@@ -1414,7 +1450,6 @@
             showToast(`${importCount}件のデータをインポートしました。`);
             };
             reader.readAsText(file);
-            // ファイル入力をリセット（同じファイルを再度選択できるように）
             event.target.value = '';
         };
 
