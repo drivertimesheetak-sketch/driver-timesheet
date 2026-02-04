@@ -1327,10 +1327,10 @@
             for (let i = 1; i < lines.length; i++) {
                 try {
                 const cols = parseCSVLine(lines[i]);
-                // 最小限のカラム数チェック (旧形式は18列、新形式は36列)
-                if (cols.length < 18) continue; 
+                // 最小限のカラム数チェック
+                if (cols.length < 1) continue; 
 
-                const dateKey = cols[0];
+                const dateKey = (cols[0] || '').trim();
                 // 日付形式チェック (YYYY-MM-DD)
                 if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) continue;
 
@@ -1375,7 +1375,7 @@
                         cost: cols[expenseStartIndex + 1 + j * 2] || ''
                     };
                     }
-                } else {
+                } else if (cols.length >= 18) {
                     // 旧フォーマット (合計のみ) の場合のフォールバック処理
                     const totalTransport = parseInt(cols[16], 10) || 0;
                     const totalExpense = parseInt(cols[17], 10) || 0;
@@ -3215,7 +3215,7 @@
                                             <span className="font-medium text-slate-700 text-sm">臨泊</span>
                                             </div>
                                             <span className={`font-bold ${currentReportSummary.totalTempOvernight > 0 ? 'text-slate-900' : 'text-slate-300'}`}>
-                                            {currentReportSummary.totalTempOvernight} <span className="text-xs font-normal text-slate-400">回</span>
+                                            {currentReportSummary.totalTempOvernight} <span className="text-xs font-normal text-slate-400">{unit === '日' ? '日' : '回'}</span>
                                             </span>
                                         </div>
                                     )}
