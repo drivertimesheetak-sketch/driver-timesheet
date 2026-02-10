@@ -2242,7 +2242,10 @@
                                 <div className="flex flex-col gap-1.5">
                                 {validTransports.map((t, i) => (
                                     <div key={i} className="flex justify-between text-xs text-slate-600 pl-1">
-                                    <span className="font-medium">{t.name}</span>
+                                    <span className="font-medium flex items-center gap-1">
+                                        {t.name && t.name.includes('(往復)') ? t.name.replace('(往復)', '').replace('→', '←→') : t.name}
+                                        {t.name && t.name.includes('(往復)') && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 font-bold whitespace-nowrap">往復</span>}
+                                    </span>
                                     <span className="font-mono text-slate-800">¥{Number(t.cost).toLocaleString()}</span>
                                     </div>
                                 ))}
@@ -2753,109 +2756,184 @@
                                     }
 
                                     return (
-                                    <div key={index} className="flex flex-col gap-2 p-2 bg-white/40 rounded-xl border border-amber-100/50">
-                                        {/* Row 1 */}
-                                        <div className="grid grid-cols-3 gap-2">
-                                            <input
-                                                type="text"
-                                                autoComplete="off"
-                                                placeholder="乗車場所"
-                                                value={trans.from || (trans.name && !trans.to ? trans.name : '') || ''} // Fallback to name if generic
-                                                onClick={(e) => e.stopPropagation()}
-                                                onChange={(e) => {
-                                                    const newTrans = [...tempEntry.transportations];
-                                                    const val = e.target.value;
-                                                    const to = newTrans[index].to || '';
-                                                    const mode = newTrans[index].mode || '鉄道';
-                                                    const newName = (val || to) ? `${val} → ${to}（${mode}）` : '';
-                                                    newTrans[index] = { 
-                                                        ...newTrans[index], 
-                                                        from: val,
-                                                        name: newName
-                                                    };
-                                                    setTempEntry({ ...tempEntry, transportations: newTrans });
-                                                }}
-                                                className="relative z-20 cursor-text col-span-2 w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm placeholder:text-slate-300"
-                                            />
-                                            <div className="relative col-span-1 w-full min-w-[5rem]">
-                                                <select
-                                                    value={trans.mode || '鉄道'}
-                                                    onChange={(e) => {
+                                    <div key={index} className="p-3 mb-2 bg-white rounded-2xl border border-amber-200 shadow-sm transition-shadow hover:shadow-md">
+                                        <div className="flex flex-col gap-2.5">
+                                            {/* ルート入力（タイムライン風） */}
+                                            <div className="flex gap-3 relative">
+                                                {/* タイムライン装飾 */}
+                                                <div className="flex flex-col items-center pt-3 absolute top-0 bottom-2 left-1.5 w-4 z-0 pointer-events-none opacity-40">
+                                                    <div className="w-2.5 h-2.5 rounded-full border-[3px] border-amber-400 bg-white shrink-0"></div>
+                                                    <div className="w-0.5 flex-1 bg-amber-300 my-0.5"></div>
+                                                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></div>
+                                                </div>
+
+                                                <div className="flex-1 flex flex-col gap-2 pl-6">
+                                                    {/* 乗車場所 */}
+                                                    <input
+                                                        type="text"
+                                                        autoComplete="off"
+                                                        placeholder="乗車場所"
+                                                        value={trans.from || (trans.name && !trans.to && !trans.name.includes('→') ? trans.name : '') || ''}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        onChange={(e) => {
+                                                            const newTrans = [...tempEntry.transportations];
+                                                            const val = e.target.value;
+                                                            const to = newTrans[index].to || '';
+                                                            const mode = newTrans[index].mode || '鉄道';
+                                                            
+                                                            // 往復状態の維持チェック
+                                                            const currentName = newTrans[index].name || '';
+                                                            const isRT = currentName.includes('(往復)');
+                                                            
+                                                            let newName = (val || to) ? `${val} → ${to}（${mode}）` : '';
+                                                            if (isRT) newName += ' (往復)';
+
+                                                            newTrans[index] = { 
+                                                                ...newTrans[index], 
+                                                                from: val,
+                                                                name: newName
+                                                            };
+                                                            setTempEntry({ ...tempEntry, transportations: newTrans });
+                                                        }}
+                                                        className="w-full p-2.5 text-sm font-bold text-slate-700 bg-slate-50 border border-transparent focus:bg-white ring-1 ring-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400/50 outline-none transition-all placeholder:text-slate-300"
+                                                    />
+                                                    
+                                                    {/* 降車場所 */}
+                                                    <input
+                                                        type="text"
+                                                        autoComplete="off"
+                                                        placeholder="降車場所"
+                                                        value={trans.to || ''}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        onChange={(e) => {
+                                                            const newTrans = [...tempEntry.transportations];
+                                                            const val = e.target.value;
+                                                            const from = newTrans[index].from || '';
+                                                            const mode = newTrans[index].mode || '鉄道';
+                                                            
+                                                            // 往復状態の維持チェック
+                                                            const currentName = newTrans[index].name || '';
+                                                            const isRT = currentName.includes('(往復)');
+                                                            
+                                                            let newName = (from || val) ? `${from} → ${val}（${mode}）` : '';
+                                                            if (isRT) newName += ' (往復)';
+
+                                                            newTrans[index] = { 
+                                                                ...newTrans[index], 
+                                                                to: val,
+                                                                name: newName
+                                                            };
+                                                            setTempEntry({ ...tempEntry, transportations: newTrans });
+                                                        }}
+                                                        className="w-full p-2.5 text-sm font-bold text-slate-700 bg-slate-50 border border-transparent focus:bg-white ring-1 ring-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400/50 outline-none transition-all placeholder:text-slate-300"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* 詳細設定（交通手段・運賃・往復） */}
+                                            <div className="flex items-center gap-2 pl-6 mt-1">
+                                                {/* 交通手段 */}
+                                                <div className="relative flex-1 min-w-[30%]">
+                                                    <select
+                                                        value={trans.mode || '鉄道'}
+                                                        onChange={(e) => {
+                                                            const newTrans = [...tempEntry.transportations];
+                                                            const val = e.target.value;
+                                                            
+                                                            let from = newTrans[index].from || '';
+                                                            if (!from && newTrans[index].name && !newTrans[index].to) {
+                                                                from = newTrans[index].name.replace(' (往復)', '');
+                                                            }
+
+                                                            const to = newTrans[index].to || '';
+                                                            
+                                                            const currentName = newTrans[index].name || '';
+                                                            const isRT = currentName.includes('(往復)');
+
+                                                            let newName = (from || to) ? `${from} → ${to}（${val}）` : '';
+                                                            if (isRT) newName += ' (往復)';
+
+                                                            newTrans[index] = { 
+                                                                ...newTrans[index], 
+                                                                mode: val,
+                                                                from: from,
+                                                                name: newName
+                                                            };
+                                                            setTempEntry({ ...tempEntry, transportations: newTrans });
+                                                        }}
+                                                        className="w-full p-2.5 text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400/50 outline-none appearance-none pr-8"
+                                                    >
+                                                        <option value="交通機関">交通機関</option>
+                                                        <option value="ＪＲ">ＪＲ</option>
+                                                        <option value="私鉄">私鉄</option>
+                                                        <option value="地下鉄">地下鉄</option>
+                                                        <option value="新幹線">新幹線</option>
+                                                        <option value="特急料金">特急料金</option>
+                                                        <option value="バス">バス</option>
+                                                        <option value="タクシー">タクシー</option>
+                                                        <option value="飛行機">飛行機</option>
+                                                        <option value="フェリー">フェリー</option>
+                                                        <option value="その他">その他</option>
+                                                    </select>
+                                                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-amber-400 pointer-events-none" size={14} />
+                                                </div>
+
+                                                {/* 運賃 */}
+                                                <div className="relative w-[30%] min-w-[80px]">
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        autoComplete="off"
+                                                        placeholder="¥0"
+                                                        value={trans.cost}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        onChange={(e) => {
+                                                            const newTrans = [...tempEntry.transportations];
+                                                            newTrans[index] = { ...newTrans[index], cost: e.target.value };
+                                                            setTempEntry({ ...tempEntry, transportations: newTrans });
+                                                        }}
+                                                        className="w-full p-2.5 text-sm font-mono font-bold text-right bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400/50 outline-none placeholder:text-slate-300"
+                                                    />
+                                                </div>
+
+                                                {/* 往復ボタン */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
                                                         const newTrans = [...tempEntry.transportations];
-                                                        const val = e.target.value;
-                                                        
-                                                        let from = newTrans[index].from || '';
-                                                        // 既存のnameがあり、かつfrom/toが未設定の場合（インポートデータ等）、nameをfromとして扱う
-                                                        if (!from && newTrans[index].name && !newTrans[index].to) {
-                                                            from = newTrans[index].name;
+                                                        const currentItem = newTrans[index];
+                                                        const currentName = currentItem.name || '';
+                                                        const isRT = currentName.includes('(往復)');
+                                                        let newCost = parseInt(currentItem.cost, 10);
+                                                        if (isNaN(newCost)) newCost = 0;
+
+                                                        let newName = currentName;
+
+                                                        if (isRT) {
+                                                            newCost = Math.round(newCost / 2);
+                                                            newName = newName.replace(' (往復)', '');
+                                                        } else {
+                                                            newCost = newCost * 2;
+                                                            newName = newName + ' (往復)';
                                                         }
 
-                                                        const to = newTrans[index].to || '';
-                                                        const newName = (from || to) ? `${from} → ${to}（${val}）` : '';
-
-                                                        newTrans[index] = { 
-                                                            ...newTrans[index], 
-                                                            mode: val,
-                                                            from: from,
+                                                        newTrans[index] = {
+                                                            ...currentItem,
+                                                            cost: newCost > 0 ? String(newCost) : '',
                                                             name: newName
                                                         };
                                                         setTempEntry({ ...tempEntry, transportations: newTrans });
                                                     }}
-                                                    className="w-full h-full p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm appearance-none font-medium text-slate-700 text-center"
+                                                    className={`px-3 py-2.5 rounded-lg text-xs font-bold transition-all border shadow-sm whitespace-nowrap
+                                                        ${(trans.name && trans.name.includes('(往復)'))
+                                                            ? 'bg-amber-500 text-white border-amber-600 shadow-amber-200'
+                                                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                                                        }
+                                                    `}
                                                 >
-                                                    <option value="交通機関">交通機関</option>
-                                                    <option value="ＪＲ">ＪＲ</option>
-                                                    <option value="私鉄">私鉄</option>
-                                                    <option value="地下鉄">地下鉄</option>
-                                                    <option value="新幹線">新幹線</option>
-                                                    <option value="特急料金">特急料金</option>
-                                                    <option value="バス">バス</option>
-                                                    <option value="タクシー">タクシー</option>
-                                                    <option value="飛行機">飛行機</option>
-                                                    <option value="フェリー">フェリー</option>
-                                                    <option value="その他">その他</option>
-                                                </select>
-                                                <ChevronDown className="hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                                                    往復
+                                                </button>
                                             </div>
-                                        </div>
-
-                                        {/* Row 2 */}
-                                        <div className="grid grid-cols-3 gap-2">
-                                            <input
-                                                type="text"
-                                                autoComplete="off"
-                                                placeholder="降車場所"
-                                                value={trans.to || ''}
-                                                onClick={(e) => e.stopPropagation()}
-                                                onChange={(e) => {
-                                                    const newTrans = [...tempEntry.transportations];
-                                                    const val = e.target.value;
-                                                    const from = newTrans[index].from || '';
-                                                    const mode = newTrans[index].mode || '鉄道';
-                                                    const newName = (from || val) ? `${from} → ${val}（${mode}）` : '';
-                                                    newTrans[index] = { 
-                                                        ...newTrans[index], 
-                                                        to: val,
-                                                        name: newName
-                                                    };
-                                                    setTempEntry({ ...tempEntry, transportations: newTrans });
-                                                }}
-                                                className="relative z-20 cursor-text col-span-2 w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none shadow-sm placeholder:text-slate-300"
-                                            />
-                                            <input
-                                                type="text"
-                                                inputMode="numeric"
-                                                autoComplete="off"
-                                                placeholder="運賃"
-                                                value={trans.cost}
-                                                onClick={(e) => e.stopPropagation()}
-                                                onChange={(e) => {
-                                                    const newTrans = [...tempEntry.transportations];
-                                                    newTrans[index] = { ...newTrans[index], cost: e.target.value };
-                                                    setTempEntry({ ...tempEntry, transportations: newTrans });
-                                                }}
-                                                className="relative z-20 cursor-text col-span-1 w-full min-w-[5rem] p-3 text-sm bg-[#FFFDBE]/20 border border-transparent ring-2 ring-amber-200/50 rounded-xl focus:ring-2 focus:ring-amber-500/30 outline-none text-center shadow-sm placeholder:text-slate-300"
-                                            />
                                         </div>
                                     </div>
                                     );
