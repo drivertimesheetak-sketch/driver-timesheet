@@ -191,7 +191,7 @@
         };
 
         const handleDelete = () => {
-            setInput(input.slice(0, -1));
+            input.slice(0, -1);
             setError('');
         };
 
@@ -642,6 +642,7 @@
             manualNursingLeaveDeduction: 0, // 追加: 看護休手動減算
             manualCareLeaveDeduction: 0, // 追加: 介護休手動減算
             overtimeHourlyRate: 0, // 追加: 残業時間給
+            holidayWorkHourlyRate: 0, // 追加: 休日出勤時間給
         });
 
         // スワイプ用state
@@ -3259,11 +3260,11 @@
                                     <div className="text-xs text-red-500 font-bold mb-1 uppercase tracking-wider">残業時間</div>
                                     <div className="text-2xl font-bold text-red-600 font-mono tracking-tight">
                                     {currentReportSummary.overtimeHours}<span className="text-xs ml-0.5 text-red-400">h</span>
-                                    {String(currentReportSummary.totalMinutes).padStart(2,'0')}<span className="text-xs ml-0.5 text-red-400">m</span>
+                                    {String(currentReportSummary.overtimeMinutes).padStart(2,'0')}<span className="text-xs ml-0.5 text-red-400">m</span>
                                     </div>
                                     {/* 残業代表示追加 */}
                                     <div className="text-sm font-bold text-red-500/90 mt-1 font-mono">
-                                        ¥{Math.floor(((currentReportSummary.overtimeHours * 60 + currentReportSummary.overtimeMinutes) / 60) * (settings.overtimeHourlyRate || 0)).toLocaleString()}
+                                        【¥{Math.floor(((currentReportSummary.overtimeHours * 60 + currentReportSummary.overtimeMinutes) / 60) * (settings.overtimeHourlyRate || 0)).toLocaleString()}】
                                     </div>
                                 </div>
                             </div>
@@ -3286,6 +3287,10 @@
                                     <div className="text-2xl font-bold text-orange-700 font-mono tracking-tight">
                                     {currentReportSummary.holidayWorkHours}<span className="text-xs ml-0.5 text-orange-400">h</span>
                                     {String(currentReportSummary.holidayWorkMinutes).padStart(2,'0')}<span className="text-xs ml-0.5 text-orange-400">m</span>
+                                    </div>
+                                    {/* 休日出勤代表示追加 */}
+                                    <div className="text-sm font-bold text-orange-600/90 mt-1 font-mono">
+                                        【¥{Math.floor(((currentReportSummary.holidayWorkHours * 60 + currentReportSummary.holidayWorkMinutes) / 60) * (settings.holidayWorkHourlyRate || 0)).toLocaleString()}】
                                     </div>
                                 </div>
                             </div>
@@ -4022,6 +4027,25 @@
                                             onChange={(e) => {
                                                 const val = e.target.value.replace(/[^0-9]/g, '');
                                                 setSettings({ ...settings, overtimeHourlyRate: val ? parseInt(val, 10) : 0 });
+                                            }}
+                                            className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm"
+                                        />
+                                        <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-slate-400 font-bold text-xs">
+                                            円 / h
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="border-t border-indigo-100 pt-4">
+                                    <label className="block text-sm font-bold text-slate-800 mb-2 bg-slate-100 px-3 py-1.5 rounded-lg border-l-4 border-slate-500">休日出勤時間給</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            placeholder="単価を入力"
+                                            value={settings.holidayWorkHourlyRate || ''}
+                                            onChange={(e) => {
+                                                const val = e.target.value.replace(/[^0-9]/g, '');
+                                                setSettings({ ...settings, holidayWorkHourlyRate: val ? parseInt(val, 10) : 0 });
                                             }}
                                             className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm"
                                         />
