@@ -18,7 +18,7 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+                        sans:['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
                     },
                     boxShadow: {
                         'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
@@ -160,7 +160,7 @@
         const PasscodeLock = ({ onUnlock, correctPasscode }) => {
         const [input, setInput] = useState('');
         const [error, setError] = useState('');
-        const [isShaking, setIsShaking] = useState(false);
+        const[isShaking, setIsShaking] = useState(false);
 
         const handlePress = (num) => {
             if (input.length >= 4) return;
@@ -263,7 +263,7 @@
 
         // 時間選択コンポーネント
         const TimeSelect = ({ value, onChange, minuteOptions }) => {
-        const [hStr, mStr] = (value || '00:00').split(':');
+        const[hStr, mStr] = (value || '00:00').split(':');
         const h = parseInt(hStr || '0', 10);
         const m = parseInt(mStr || '0', 10);
 
@@ -577,42 +577,42 @@
         const [isAuthenticated, setIsAuthenticated] = useState(false);
         // 初回表示モーダルのステート
         const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
-        const [tempDontShow, setTempDontShow] = useState(false);
+        const[tempDontShow, setTempDontShow] = useState(false);
 
-        const [currentDate, setCurrentDate] = useState(new Date());
+        const[currentDate, setCurrentDate] = useState(new Date());
         const [selectedDate, setSelectedDate] = useState(null);
-        const [workData, setWorkData] = useState({});
+        const[workData, setWorkData] = useState({});
         // ローカルストレージからのロード完了フラグ
-        const [isDataLoaded, setIsDataLoaded] = useState(false);
+        const[isDataLoaded, setIsDataLoaded] = useState(false);
 
-        const [isModalOpen, setIsModalOpen] = useState(false);
-        const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+        const[isModalOpen, setIsModalOpen] = useState(false);
+        const[isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
         const [isVehicleSettingsOpen, setIsVehicleSettingsOpen] = useState(false);
-        const [isVehicleSummaryOpen, setIsVehicleSummaryOpen] = useState(false);
-        const [isWorkTypeSummaryOpen, setIsWorkTypeSummaryOpen] = useState(false);
+        const[isVehicleSummaryOpen, setIsVehicleSummaryOpen] = useState(false);
+        const[isWorkTypeSummaryOpen, setIsWorkTypeSummaryOpen] = useState(false);
         // 設定変更モーダル
-        const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+        const[isConfigModalOpen, setIsConfigModalOpen] = useState(false);
         // 設定用一時ステート
         const [tempPasscode, setTempPasscode] = useState('');
         
         // データリセット用ステート
         const [isResetViewOpen, setIsResetViewOpen] = useState(false);
-        const [resetPasscode, setResetPasscode] = useState('');
+        const[resetPasscode, setResetPasscode] = useState('');
 
         // 長押し削除用のStateとRef
         const [dateToDelete, setDateToDelete] = useState(null);
         const longPressTimerRef = useRef(null);
         const isLongPressRef = useRef(false);
 
-        const [summaryTab, setSummaryTab] = useState('month');
-        const [viewMode, setViewMode] = useState('month');
+        const[summaryTab, setSummaryTab] = useState('month');
+        const[viewMode, setViewMode] = useState('month');
         const [isFullscreen, setIsFullscreen] = useState(false);
         
         // 日付ピッカーのモーダル状態 (追加)
         const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
         
         // アニメーション方向管理用State (追加)
-        const [slideDirection, setSlideDirection] = useState('');
+        const[slideDirection, setSlideDirection] = useState('');
 
         // Notification State
         const [notification, setNotification] = useState(null);
@@ -626,11 +626,11 @@
         const fileInputRef = useRef(null);
 
         // レポート用年月State
-        const [reportYear, setReportYear] = useState(new Date().getFullYear());
-        const [reportMonth, setReportMonth] = useState(new Date().getMonth());
+        const[reportYear, setReportYear] = useState(new Date().getFullYear());
+        const[reportMonth, setReportMonth] = useState(new Date().getMonth());
 
         // テーマカラー設定
-        const [themeColor, setThemeColor] = useState('bg-slate-50');
+        const[themeColor, setThemeColor] = useState('bg-slate-50');
 
         // 設定値 (passcodeを追加, 初期値0000)
         const [settings, setSettings] = useState({
@@ -647,25 +647,26 @@
 
         // スワイプ用state
         const [touchStart, setTouchStart] = useState(null);
-        const [touchEnd, setTouchEnd] = useState(null);
+        const[touchEnd, setTouchEnd] = useState(null);
         const minSwipeDistance = 50;
 
         // 車両マスタ編集用のState
-        const [addingVehicleCategory, setAddingVehicleCategory] = useState(null);
+        const[addingVehicleCategory, setAddingVehicleCategory] = useState(null);
         const [newVehicleName, setNewVehicleName] = useState('');
         const [deleteConfirmation, setDeleteConfirmation] = useState(null); // { category, name } or null
 
-        const [isCostSummaryOpen, setIsCostSummaryOpen] = useState(false); // 経費集計アコーディオン用
+        const[isCostSummaryOpen, setIsCostSummaryOpen] = useState(false); // 経費集計アコーディオン用
+        const[isBusinessTripSummaryOpen, setIsBusinessTripSummaryOpen] = useState(false); // 出張手当アコーディオン用
 
         // 車両マスタ初期値
         const INITIAL_VEHICLES = {
-            '緊急': [
+            '緊急':[
                 'AK-13', 'AK-32', 'AK-B1', 'AHP-2', 'AHP-4',
                 'FP-1', 'FP-2', 'FP-3', 'FP-4', 'N-16',
                 'SS-1', 'SS-2', 'SS-3', '4161', '3792', '1082',
                 '支援車', 'ミニキャブ', '小ルート', 'ランクル'
             ],
-            '中継': [
+            '中継':[
                 'A-1', 'AH-36', 'AH-37', 'AH-71', 'AH-72',
                 'AK-30', 'AK-35', 'AK-58', 'AM-34',
                 'EG-1', 'EG-2', 'HA-1', 'HC-3', 'HC-4', 'HC-5', 'HC-6',
@@ -673,15 +674,15 @@
                 'SA-1', 'SHC-4', 'Z-1', 'Z-2',
                 '4K-1', '4K-2', '4K-3', '4K-4', '4K-5', '4K-SWC'
             ],
-            'NBC': [
+            'NBC':[
                 'ミニバス660', 'ミニバス963', 'ミニバス1754', 'ミニバス2101', 'ミニバス2583',
                 'ミニバス3016', 'ミニバス3272', 'ミニバス3276',
                 '大ルート500', '大ルート636', '大ルート708', '大ルート'
             ],
-            'NT': [
+            'NT':[
                 'S-1', 'S-2', 'T-2', '4K-OB1', 'Wakey号'
             ],
-            '技研 / 他': [
+            '技研 / 他':[
                 'ハイエース', 'コースター', '広域車', 'レンタカー'
             ]
         };
@@ -689,7 +690,7 @@
         const [vehicleMaster, setVehicleMaster] = useState(INITIAL_VEHICLES);
 
         // モーダル用の一時ステート
-        const [tempEntry, setTempEntry] = useState({
+        const[tempEntry, setTempEntry] = useState({
             startTime: '',
             endTime: '',
             type: 'work',
@@ -710,7 +711,7 @@
         });
 
         // --- 定数定義 ---
-        const THEME_COLORS = [
+        const THEME_COLORS =[
             { id: 'red', class: 'bg-rose-50', border: 'border-rose-100', label: '赤' },
             { id: 'orange', class: 'bg-orange-50', border: 'border-orange-100', label: '橙' },
             { id: 'yellow', class: 'bg-amber-50', border: 'border-amber-100', label: '黄' },
@@ -721,13 +722,13 @@
             { id: 'default', class: 'bg-slate-50', border: 'border-slate-100', label: '灰' },
         ];
 
-        const WORK_PATTERNS = [
+        const WORK_PATTERNS =[
             { id: 'standard', label: '通常 (9時間)', hours: 9.0 },
             { id: 'long', label: '10.5 (11時間30分)', hours: 11.5 },
             { id: 'short', label: '5.5 (6時間30分)', hours: 6.5 },
         ];
 
-        const WORK_TYPES = [
+        const WORK_TYPES =[
             { id: 'work', label: '日勤', group: 'work', color: 'bg-white text-blue-700 border-blue-200 shadow-sm' },
             { id: 'overnight', label: '泊り', group: 'work', color: 'bg-blue-50 text-blue-700 border-blue-200 shadow-sm' },
             { id: 'post_night', label: '明け', group: 'work', color: 'bg-blue-50 text-blue-700 border-blue-200 shadow-sm' },
@@ -750,7 +751,7 @@
             { id: 'company_holiday', label: '会社休', group: 'holiday', color: 'bg-red-50/70 text-red-600/80 border-red-100/70 shadow-sm' },
         ];
 
-        const HOLIDAY_OPTIONS = [
+        const HOLIDAY_OPTIONS =[
             { id: 'day', label: '日勤' },
             { id: 'business_trip', label: '出張' },
             { id: '8overnight', label: '泊り' },
@@ -848,7 +849,7 @@
             return () => {
                 document.body.style.overflow = '';
             };
-        }, [isModalOpen, isSummaryModalOpen, isVehicleSettingsOpen, isConfigModalOpen, isWelcomeModalOpen, isDatePickerOpen, dateToDelete, deleteConfirmation]);
+        },[isModalOpen, isSummaryModalOpen, isVehicleSettingsOpen, isConfigModalOpen, isWelcomeModalOpen, isDatePickerOpen, dateToDelete, deleteConfirmation]);
 
         useEffect(() => {
             // データ読み込み処理
@@ -883,7 +884,7 @@
             };
 
             loadData();
-        }, []);
+        },[]);
 
         // 自動保存：勤務データ
         useEffect(() => {
@@ -891,13 +892,13 @@
             if (!isDataLoaded) return;
 
             localStorage.setItem('workTrackerData', JSON.stringify(workData));
-        }, [workData, isDataLoaded]);
+        },[workData, isDataLoaded]);
 
         // 自動保存：設定
         useEffect(() => {
             if (!isDataLoaded) return;
             localStorage.setItem('workTrackerSettings', JSON.stringify(settings));
-        }, [settings, isDataLoaded]);
+        },[settings, isDataLoaded]);
 
         // 自動保存：車両マスタ
         useEffect(() => {
@@ -913,7 +914,7 @@
 
         // アプリライクな表示（PWA/フルスクリーン）のためのメタタグ設定
         useEffect(() => {
-            const metaTags = [
+            const metaTags =[
             { name: 'apple-mobile-web-app-capable', content: 'yes' },
             { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
             { name: 'mobile-web-app-capable', content: 'yes' },
@@ -934,7 +935,7 @@
             };
             document.addEventListener('fullscreenchange', handleFullscreenChange);
             return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-        }, []);
+        },[]);
 
         const toggleFullscreen = () => {
             if (!document.fullscreenElement) {
@@ -1183,7 +1184,7 @@
         // CSVエクスポート機能
         const handleExportCSV = () => {
             // ヘッダー行
-            const headers = [
+            const headers =[
             '日付', '曜日', '勤務区分', '開始時間', '終了時間',
             '勤務パターン', '備考', '現出', '現退',
             '休日出勤', '休出タイプ',
@@ -1218,7 +1219,7 @@
             const entry = workData[dateKey];
             const [y, m, d] = dateKey.split('-').map(Number);
             const dateObj = new Date(y, m - 1, d);
-            const dayName = ['日', '月', '火', '水', '木', '金', '土'][dateObj.getDay()];
+            const dayName =['日', '月', '火', '水', '木', '金', '土'][dateObj.getDay()];
             
             const typeLabel = WORK_TYPES.find(t => t.id === entry.type)?.label || entry.type;
             const patternLabel = WORK_PATTERNS.find(p => p.id === entry.workPatternId)?.label || entry.workPatternId;
@@ -1234,11 +1235,11 @@
                 return stringValue;
             };
 
-            const vehicles = entry.vehicles || [];
+            const vehicles = entry.vehicles ||[];
             
             // 交通費と立替費の配列を必ず10要素にする
             const fillArray = (arr, length) => {
-                const res = arr ? [...arr] : [];
+                const res = arr ? [...arr] :[];
                 while (res.length < length) res.push({ name: '', cost: '' });
                 return res.slice(0, length);
             };
@@ -1246,7 +1247,7 @@
             const transports = fillArray(entry.transportations, 10);
             const expenses = fillArray(entry.expenses, 10);
 
-            return [
+            return[
                 dateKey,
                 dayName,
                 escape(typeLabel),
@@ -1271,7 +1272,7 @@
                 // 交通費詳細展開
                 ...transports.flatMap(t => [escape(t.name), escape(t.cost)]),
                 // 立替費詳細展開
-                ...expenses.flatMap(e => [escape(e.name), escape(e.cost)])
+                ...expenses.flatMap(e =>[escape(e.name), escape(e.cost)])
             ].join(',');
             });
 
@@ -1299,7 +1300,7 @@
             // CSVパース用の堅牢な関数（クォート内の改行を考慮）
             const parseCSVText = (csvText) => {
                 const rows = [];
-                let currentRow = [];
+                let currentRow =[];
                 let currentField = '';
                 let inQuotes = false;
                 for (let i = 0; i < csvText.length; i++) {
@@ -1325,7 +1326,7 @@
                                 currentRow.push(currentField);
                                 rows.push(currentRow);
                             }
-                            currentRow = [];
+                            currentRow =[];
                             currentField = '';
                             if (char === '\r' && nextChar === '\n') i++;
                         } else {
@@ -1474,7 +1475,7 @@
             if (newVehicleName && addingVehicleCategory) {
             setVehicleMaster(prev => ({
                 ...prev,
-                [addingVehicleCategory]: [...prev[addingVehicleCategory], newVehicleName]
+                [addingVehicleCategory]:[...prev[addingVehicleCategory], newVehicleName]
             }));
             setAddingVehicleCategory(null);
             setNewVehicleName('');
@@ -1503,6 +1504,7 @@
             let totalTempOvernight = 0; // 追加
             let totalTransportCost = 0;
             let totalExpenseCost = 0;
+            let totalAccommodationSurplus = 0; // 追加
             const transportBreakdown = {
                 '交通機関': 0, 'ＪＲ': 0, '私鉄': 0, '地下鉄': 0, '新幹線': 0, '特急料金': 0, 'バス': 0, 'タクシー': 0, '飛行機': 0, 'フェリー': 0, '全行程': 0, 'その他': 0
             };
@@ -1611,6 +1613,12 @@
                         if (e.name && expenseBreakdown.hasOwnProperty(e.name)) {
                             expenseBreakdown[e.name] += cost;
                         }
+                        if (e.name === '宿泊' && String(e.cost || '').trim() !== '') {
+                            const costValue = parseInt(e.cost, 10) || 0;
+                            if (costValue <= 9000) {
+                                totalAccommodationSurplus += (9000 - costValue);
+                            }
+                        }
                     });
                 }
 
@@ -1659,7 +1667,8 @@
             totalExpenseCost,
             expenseBreakdown,
             counts,
-            vehicleCounts
+            vehicleCounts,
+            totalAccommodationSurplus
             };
         };
 
@@ -1673,7 +1682,7 @@
 
         const monthlySummary = useMemo(() => {
             return calculateStats(workData, year, month);
-        }, [workData, year, month]);
+        },[workData, year, month]);
 
         const substituteStats = useMemo(() => {
             let totalHolidayWorkMinutes = 0;
@@ -1716,18 +1725,18 @@
             remainingDays,
             remainderMinutes
             };
-        }, [workData, reportYear, settings.manualSubHolidays]);
+        },[workData, reportYear, settings.manualSubHolidays]);
 
         const paidLeaveStats = useMemo(() => {
             // 1. 会計年度の特定 (4月始まり)
             const fiscalYear = reportMonth < 3 ? reportYear - 1 : reportYear;
 
             // 2. 全ての有休取得日を収集・ソート
-            const usedLeaves = [];
+            const usedLeaves =[];
             Object.keys(workData).forEach(key => {
             const entry = workData[key];
             if (entry.type === 'paid_leave') {
-                const [y, m, d] = key.split('-').map(Number);
+                const[y, m, d] = key.split('-').map(Number);
                 usedLeaves.push(new Date(y, m - 1, d));
             }
             });
@@ -1742,7 +1751,7 @@
 
             // 付与データの生成 (Grant A, Grant B, ...)
             // 各年度4/1に20日付与、有効期限2年
-            const grants = [];
+            const grants =[];
             for (let y = minYear; y <= fiscalYear; y++) {
             grants.push({
                 year: y,
@@ -1819,7 +1828,7 @@
             nextExpiring,
             fiscalYear
             };
-        }, [workData, reportYear, reportMonth, settings.manualPaidLeaveDeduction]);
+        },[workData, reportYear, reportMonth, settings.manualPaidLeaveDeduction]);
 
         const creativeLeaveStats = useMemo(() => {
             // 1月~3月は前年度扱いにする
@@ -1850,7 +1859,7 @@
             termEnd,
             fiscalYear
             };
-        }, [workData, reportYear, reportMonth, settings.manualCreativeLeaveDeduction]);
+        },[workData, reportYear, reportMonth, settings.manualCreativeLeaveDeduction]);
 
         const medicalLeaveStats = useMemo(() => {
             const fiscalYear = reportMonth < 3 ? reportYear - 1 : reportYear;
@@ -1881,7 +1890,7 @@
             termStart,
             termEnd
             };
-        }, [workData, reportYear, reportMonth, settings.medicalLeaveGrant]);
+        },[workData, reportYear, reportMonth, settings.medicalLeaveGrant]);
 
         const nursingLeaveStats = useMemo(() => {
             const fiscalYear = reportMonth < 3 ? reportYear - 1 : reportYear;
@@ -1893,7 +1902,7 @@
             Object.keys(workData).forEach(key => {
             const entry = workData[key];
             if (entry.type === 'nursing_leave') {
-                const [y, m, d] = key.split('-').map(Number);
+                const[y, m, d] = key.split('-').map(Number);
                 const date = new Date(y, m - 1, d);
                 if (date >= termStart && date <= termEnd) {
                 usedDays++;
@@ -1904,7 +1913,7 @@
             const deduction = settings.manualNursingLeaveDeduction || 0;
             const remaining = Math.max(0, grant - usedDays - deduction);
             return { usedDays, grant, remaining, fiscalYear, termStart, termEnd };
-        }, [workData, reportYear, reportMonth, settings.manualNursingLeaveDeduction]);
+        },[workData, reportYear, reportMonth, settings.manualNursingLeaveDeduction]);
 
         const careLeaveStats = useMemo(() => {
             const fiscalYear = reportMonth < 3 ? reportYear - 1 : reportYear;
@@ -1927,7 +1936,7 @@
             const deduction = settings.manualCareLeaveDeduction || 0;
             const remaining = Math.max(0, grant - usedDays - deduction);
             return { usedDays, grant, remaining, fiscalYear, termStart, termEnd };
-        }, [workData, reportYear, reportMonth, settings.manualCareLeaveDeduction]);
+        },[workData, reportYear, reportMonth, settings.manualCareLeaveDeduction]);
 
         const currentReportSummary = reportSummary;
 
@@ -1949,7 +1958,7 @@
         };
 
         const renderMonthView = () => {
-            const calendarDays = [];
+            const calendarDays =[];
             for (let i = 0; i < firstDayOfMonth; i++) {
             calendarDays.push(<div key={`empty-${i}`} className="min-h-[6.5rem] h-auto border-r border-b border-slate-100 bg-slate-50/30" />);
             }
@@ -2081,7 +2090,7 @@
         };
 
         const renderWeekView = () => {
-            const weekDays = [];
+            const weekDays =[];
             for (let day = 1; day <= daysInMonth; day++) {
             const d = new Date(year, month, day);
             weekDays.push(d);
@@ -2096,7 +2105,7 @@
                 const dateKey = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                 let entry = workData[dateKey];
                 const dayOfWeek = dateObj.getDay();
-                const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+                const dayNames =['日', '月', '火', '水', '木', '金', '土'];
                 const isToday = new Date().toDateString() === dateObj.toDateString();
                 const { isHoliday, name: holidayName } = getHolidayInfo(y, m, d);
 
@@ -2139,11 +2148,11 @@
                     }
                 }
 
-                const validTransports = entry?.transportations?.filter(t => t.name || t.cost) || [];
-                const validExpenses = entry?.expenses?.filter(e => e.name || e.cost) || [];
+                const validTransports = entry?.transportations?.filter(t => t.name || t.cost) ||[];
+                const validExpenses = entry?.expenses?.filter(e => e.name || e.cost) ||[];
                 const totalTransportCost = validTransports.reduce((sum, t) => sum + (parseInt(t.cost, 10) || 0), 0);
                 const totalExpenseCost = validExpenses.reduce((sum, e) => sum + (parseInt(e.cost, 10) || 0), 0);
-                const validVehicles = entry?.vehicles?.filter(Boolean) || [];
+                const validVehicles = entry?.vehicles?.filter(Boolean) ||[];
 
                 return (
                     <div
@@ -2451,7 +2460,7 @@
                     <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white/50 backdrop-blur-md">
                     <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2 tracking-tight">
                         {selectedDate && (() => {
-                        const [y, m, d] = selectedDate.split('-');
+                        const[y, m, d] = selectedDate.split('-');
                         const { isHoliday, name } = getHolidayInfo(Number(y), Number(m), Number(d));
                         return (
                             <div className="flex items-center gap-3">
@@ -2722,7 +2731,7 @@
                                 index={idx}
                                 value={v}
                                 onChange={(newVal) => {
-                                    const newVehicles = [...tempEntry.vehicles];
+                                    const newVehicles =[...tempEntry.vehicles];
                                     newVehicles[idx] = newVal;
                                     setTempEntry({ ...tempEntry, vehicles: newVehicles });
                                 }}
@@ -2778,7 +2787,7 @@
                                                         value={trans.from || (trans.name && !trans.to && !trans.name.includes('→') ? trans.name : '') || ''}
                                                         onClick={(e) => e.stopPropagation()}
                                                         onChange={(e) => {
-                                                            const newTrans = [...tempEntry.transportations];
+                                                            const newTrans =[...tempEntry.transportations];
                                                             const val = e.target.value;
                                                             const to = newTrans[index].to || '';
                                                             const mode = newTrans[index].mode || '鉄道';
@@ -3264,7 +3273,7 @@
                                     </div>
                                     {/* 残業代表示追加 */}
                                     <div className="text-sm font-bold text-red-500/90 mt-1 font-mono">
-                                        【¥{Math.floor(((currentReportSummary.overtimeHours * 60 + currentReportSummary.overtimeMinutes) / 60) * (settings.overtimeHourlyRate || 0)).toLocaleString()}】
+                                        【¥{Math.floor(((currentReportSummary.overtimeHours * 60 + currentReportSummary.overtimeMinutes) / 60) * (settings.overtimeHourlyRate || 0)).toLocaleString()} 】
                                     </div>
                                 </div>
                             </div>
@@ -3435,7 +3444,7 @@
                     </div>
 
                     {/* Cost Summary (Accordion) */}
-                    <div className="mt-4 px-4 pb-8">
+                    <div className="mt-4 px-4">
                         <button
                         onClick={() => setIsCostSummaryOpen(!isCostSummaryOpen)}
                         className={`w-full flex justify-between items-center p-4 rounded-2xl border transition-all duration-200 shadow-sm group
@@ -3506,6 +3515,84 @@
                                     </div>
                                     <span className="font-mono font-bold text-xl text-slate-900 border-b-2 border-amber-300 px-1">
                                         ¥{(currentReportSummary.totalTransportCost + currentReportSummary.totalExpenseCost).toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        )}
+                    </div>
+
+                    {/* Business Trip Allowance Summary (Accordion) */}
+                    <div className="mt-4 px-4 pb-8">
+                        <button
+                        onClick={() => setIsBusinessTripSummaryOpen(!isBusinessTripSummaryOpen)}
+                        className={`w-full flex justify-between items-center p-4 rounded-2xl border transition-all duration-200 shadow-sm group
+                            ${isBusinessTripSummaryOpen
+                            ? 'bg-lime-50 border-lime-200 text-lime-900'
+                            : 'bg-white border-slate-100 hover:border-lime-200 hover:shadow-md'}`}
+                        >
+                        <div className="flex items-center gap-4">
+                            <div className={`p-2.5 rounded-xl ${isBusinessTripSummaryOpen ? 'bg-lime-200 text-lime-700' : 'bg-lime-50 text-lime-600 group-hover:bg-lime-100'}`}>
+                            <Briefcase size={20} />
+                            </div>
+                            <div className="text-left">
+                            <div className="font-bold text-sm">出張手当</div>
+                            <div className="text-[10px] text-slate-400">出張回数に応じた日当の合計</div>
+                            </div>
+                        </div>
+                        <div className={`transition-transform duration-300 ${isBusinessTripSummaryOpen ? 'rotate-180' : ''}`}>
+                            <ChevronDown size={20} className={isBusinessTripSummaryOpen ? 'text-lime-600' : 'text-slate-300'} />
+                        </div>
+                        </button>
+
+                        {isBusinessTripSummaryOpen && (
+                        <div className="mt-2 bg-white rounded-2xl border border-lime-100 shadow-sm overflow-hidden animate-in slide-in-from-top-2 fade-in duration-200">
+                            <div className="p-4 space-y-3">
+                                <div className="p-4 bg-lime-50/50 rounded-xl border border-lime-100">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div className="flex items-center gap-2 text-lime-800">
+                                            <Briefcase size={16}/>
+                                            <span className="font-bold text-sm">日当</span>
+                                        </div>
+                                        <span className="font-mono font-bold text-lg text-lime-900">
+                                            ¥{(currentReportSummary.counts['business_trip'] * 3000 || 0).toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <div className="space-y-1 pl-6">
+                                        <div className="flex justify-between text-[11px] text-lime-700 font-medium">
+                                            <span>出張回数</span>
+                                            <span>{currentReportSummary.counts['business_trip'] || 0} 回</span>
+                                        </div>
+                                        <div className="flex justify-between text-[11px] text-lime-700 font-medium">
+                                            <span>単価</span>
+                                            <span>¥3,000</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-4 bg-lime-50/50 rounded-xl border border-lime-100 mt-2">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div className="flex items-center gap-2 text-lime-800">
+                                            <Briefcase size={16}/>
+                                            <span className="font-bold text-sm">宿泊余剰金</span>
+                                        </div>
+                                        <span className="font-mono font-bold text-lg text-lime-900">
+                                            ¥{(currentReportSummary.totalAccommodationSurplus || 0).toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <div className="space-y-1 pl-6">
+                                        <div className="flex justify-between text-[11px] text-lime-700 font-medium">
+                                            <span>宿泊代 差額合計 (¥9,000基準)</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100 mt-2">
+                                    <div className="flex items-center gap-2 text-slate-700">
+                                        <span className="font-bold text-sm">合計</span>
+                                    </div>
+                                    <span className="font-mono font-bold text-xl text-slate-900 border-b-2 border-lime-300 px-1">
+                                        ¥{((currentReportSummary.counts['business_trip'] * 3000 || 0) + (currentReportSummary.totalAccommodationSurplus || 0)).toLocaleString()}
                                     </span>
                                 </div>
                             </div>
