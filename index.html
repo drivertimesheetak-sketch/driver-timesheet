@@ -643,6 +643,7 @@
             manualCareLeaveDeduction: 0, // 追加: 介護休手動減算
             overtimeHourlyRate: 0, // 追加: 残業時間給
             holidayWorkHourlyRate: 0, // 追加: 休日出勤時間給
+            monguchiMode: false, // 追加: 門口さんモード
         });
 
         // スワイプ用state
@@ -1020,7 +1021,7 @@
             const dateKey = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             setSelectedDate(dateKey);
 
-            const defaultTransportations = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
+            const defaultTransportations = Array.from({ length: 10 }, () => ({ name: '', cost: '', mode: settings.monguchiMode ? '全行程' : '交通機関' }));
             const defaultExpenses = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
             const defaultVehicles = Array.from({ length: 10 }, () => '');
 
@@ -1040,7 +1041,7 @@
                 isHolidayWork: workData[dateKey].isHolidayWork || false,
                 holidayWorkType: workData[dateKey].holidayWorkType || null,
                 transportations: workData[dateKey].transportations 
-                    ? [...workData[dateKey].transportations, ...Array(10).fill({name:'',cost:''})].slice(0, 10) 
+                    ? [...workData[dateKey].transportations, ...Array(10).fill({name:'',cost:'', mode: settings.monguchiMode ? '全行程' : '交通機関'})].slice(0, 10) 
                     : defaultTransportations,
                 expenses: workData[dateKey].expenses 
                     ? [...workData[dateKey].expenses, ...Array(10).fill({name:'',cost:''})].slice(0, 10)
@@ -1388,7 +1389,7 @@
                 const vehicle4 = cols[14 + vOffset];
                 const vehicle5 = cols[15 + vOffset];
 
-                let transportations = Array.from({ length: 10 }, () => ({ name: '', cost: '', from: '', to: '', mode: '交通機関' }));
+                let transportations = Array.from({ length: 10 }, () => ({ name: '', cost: '', from: '', to: '', mode: settings.monguchiMode ? '全行程' : '交通機関' }));
                 let expenses = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
 
                 const tStart = 16 + vOffset;
@@ -1400,13 +1401,13 @@
                         const cost = cols[tStart + 1 + j * 2] || '';
                         
                         // nameからfrom, to, modeを復元
-                        let from = '', to = '', mode = '交通機関';
+                        let from = '', to = '', mode = settings.monguchiMode ? '全行程' : '交通機関';
                         if (rawName.includes(' → ') && rawName.includes('（')) {
                             const parts = rawName.split(' → ');
                             from = parts[0];
                             const sub = parts[1].split('（');
                             to = sub[0];
-                            mode = sub[1]?.replace('）', '') || '交通機関';
+                            mode = sub[1]?.replace('）', '') || (settings.monguchiMode ? '全行程' : '交通機関');
                         } else {
                             from = rawName;
                         }
@@ -2780,6 +2781,38 @@
 
                                                 <div className="flex-1 flex flex-col gap-2 pl-6">
                                                     {/* 乗車場所 */}
+                                                    {settings.monguchiMode ? (
+                                                        <select
+                                                            value={trans.from || (trans.name && !trans.to && !trans.name.includes('→') ? trans.name : '') || ''}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            onChange={(e) => {
+                                                                const newTrans =[...tempEntry.transportations];
+                                                                const val = e.target.value === 'ー' ? '' : e.target.value;
+                                                                const to = newTrans[index].to || '';
+                                                                const mode = newTrans[index].mode || (settings.monguchiMode ? '全行程' : '交通機関');
+                                                                
+                                                                // 往復状態の維持チェック
+                                                                const currentName = newTrans[index].name || '';
+                                                                const isRT = currentName.includes('(往復)');
+                                                                
+                                                                let newName = (val || to) ? `${val} → ${to}（${mode}）` : '';
+                                                                if (isRT) newName += ' (往復)';
+
+                                                                newTrans[index] = { 
+                                                                    ...newTrans[index], 
+                                                                    from: val,
+                                                                    name: newName
+                                                                };
+                                                                setTempEntry({ ...tempEntry, transportations: newTrans });
+                                                            }}
+                                                            className="w-full p-2.5 text-sm font-bold text-slate-700 bg-slate-50 border border-transparent focus:bg-white ring-1 ring-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400/50 outline-none transition-all appearance-none"
+                                                        >
+                                                            <option value="">ー</option>
+                                                            <option value="川崎大師">川崎大師</option>
+                                                            <option value="永田町">永田町</option>
+                                                            <option value="立川">立川</option>
+                                                        </select>
+                                                    ) : (
                                                     <input
                                                         type="text"
                                                         autoComplete="off"
@@ -2790,7 +2823,7 @@
                                                             const newTrans =[...tempEntry.transportations];
                                                             const val = e.target.value;
                                                             const to = newTrans[index].to || '';
-                                                            const mode = newTrans[index].mode || '鉄道';
+                                                            const mode = newTrans[index].mode || (settings.monguchiMode ? '全行程' : '交通機関');
                                                             
                                                             // 往復状態の維持チェック
                                                             const currentName = newTrans[index].name || '';
@@ -2808,8 +2841,41 @@
                                                         }}
                                                         className="w-full p-2.5 text-sm font-bold text-slate-700 bg-slate-50 border border-transparent focus:bg-white ring-1 ring-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400/50 outline-none transition-all placeholder:text-slate-300"
                                                     />
+                                                    )}
                                                     
                                                     {/* 降車場所 */}
+                                                    {settings.monguchiMode ? (
+                                                        <select
+                                                            value={trans.to || ''}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            onChange={(e) => {
+                                                                const newTrans = [...tempEntry.transportations];
+                                                                const val = e.target.value === 'ー' ? '' : e.target.value;
+                                                                const from = newTrans[index].from || '';
+                                                                const mode = newTrans[index].mode || (settings.monguchiMode ? '全行程' : '交通機関');
+                                                                
+                                                                // 往復状態の維持チェック
+                                                                const currentName = newTrans[index].name || '';
+                                                                const isRT = currentName.includes('(往復)');
+                                                                
+                                                                let newName = (from || val) ? `${from} → ${val}（${mode}）` : '';
+                                                                if (isRT) newName += ' (往復)';
+
+                                                                newTrans[index] = { 
+                                                                    ...newTrans[index], 
+                                                                    to: val,
+                                                                    name: newName
+                                                                };
+                                                                setTempEntry({ ...tempEntry, transportations: newTrans });
+                                                            }}
+                                                            className="w-full p-2.5 text-sm font-bold text-slate-700 bg-slate-50 border border-transparent focus:bg-white ring-1 ring-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400/50 outline-none transition-all appearance-none"
+                                                        >
+                                                            <option value="">ー</option>
+                                                            <option value="川崎大師">川崎大師</option>
+                                                            <option value="永田町">永田町</option>
+                                                            <option value="立川">立川</option>
+                                                        </select>
+                                                    ) : (
                                                     <input
                                                         type="text"
                                                         autoComplete="off"
@@ -2820,7 +2886,7 @@
                                                             const newTrans = [...tempEntry.transportations];
                                                             const val = e.target.value;
                                                             const from = newTrans[index].from || '';
-                                                            const mode = newTrans[index].mode || '鉄道';
+                                                            const mode = newTrans[index].mode || (settings.monguchiMode ? '全行程' : '交通機関');
                                                             
                                                             // 往復状態の維持チェック
                                                             const currentName = newTrans[index].name || '';
@@ -2838,6 +2904,7 @@
                                                         }}
                                                         className="w-full p-2.5 text-sm font-bold text-slate-700 bg-slate-50 border border-transparent focus:bg-white ring-1 ring-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400/50 outline-none transition-all placeholder:text-slate-300"
                                                     />
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -2846,7 +2913,7 @@
                                                 {/* 交通手段 */}
                                                 <div className="relative flex-1 min-w-[30%]">
                                                     <select
-                                                        value={trans.mode || '鉄道'}
+                                                        value={trans.mode || (settings.monguchiMode ? '全行程' : '交通機関')}
                                                         onChange={(e) => {
                                                             const newTrans = [...tempEntry.transportations];
                                                             const val = e.target.value;
@@ -2892,6 +2959,22 @@
 
                                                 {/* 運賃 */}
                                                 <div className="relative w-[30%] min-w-[80px]">
+                                                    {settings.monguchiMode ? (
+                                                        <select
+                                                            value={trans.cost || ''}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            onChange={(e) => {
+                                                                const newTrans = [...tempEntry.transportations];
+                                                                newTrans[index] = { ...newTrans[index], cost: e.target.value };
+                                                                setTempEntry({ ...tempEntry, transportations: newTrans });
+                                                            }}
+                                                            className="w-full p-2.5 text-sm font-mono font-bold text-right bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400/50 outline-none appearance-none"
+                                                        >
+                                                            <option value="">¥0</option>
+                                                            <option value="630">630</option>
+                                                            <option value="810">810</option>
+                                                        </select>
+                                                    ) : (
                                                     <input
                                                         type="text"
                                                         inputMode="numeric"
@@ -2906,6 +2989,7 @@
                                                         }}
                                                         className="w-full p-2.5 text-sm font-mono font-bold text-right bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400/50 outline-none placeholder:text-slate-300"
                                                     />
+                                                    )}
                                                 </div>
 
                                                 {/* 往復ボタン */}
@@ -3480,12 +3564,24 @@
                                         </span>
                                     </div>
                                     <div className="space-y-1 pl-6">
-                                        {Object.entries(currentReportSummary.transportBreakdown).filter(([key]) => key !== '交通機関').map(([key, val]) => (
+                                        {Object.entries(currentReportSummary.transportBreakdown).filter(([key]) => key !== '交通機関' && key !== '全行程').map(([key, val]) => (
                                             <div key={key} className="flex justify-between text-[11px] text-orange-700 font-medium">
                                                 <span>{key}</span>
                                                 <span>¥{val.toLocaleString()}</span>
                                             </div>
                                         ))}
+                                        {currentReportSummary.transportBreakdown['全行程'] > 0 && (
+                                            <div className="flex justify-between text-[11px] text-orange-700 font-medium">
+                                                <span>全行程</span>
+                                                <span>¥{currentReportSummary.transportBreakdown['全行程'].toLocaleString()}</span>
+                                            </div>
+                                        )}
+                                        {currentReportSummary.transportBreakdown['交通機関'] > 0 && (
+                                            <div className="flex justify-between text-[11px] text-orange-700 font-medium">
+                                                <span>交通機関</span>
+                                                <span>¥{currentReportSummary.transportBreakdown['交通機関'].toLocaleString()}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 
@@ -4142,6 +4238,31 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        <hr className="border-slate-100 my-8" />
+
+                        {/* 門口さんモード セクション */}
+                        <div className="mb-8">
+                            <h4 className="text-sm font-bold text-slate-800 mb-4 border-l-4 border-pink-500 pl-3 flex items-center gap-2 py-0.5">
+                                <Smile size={16} className="text-pink-500"/>
+                                門口さんモード
+                                <div className="ml-auto">
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input 
+                                            type="checkbox" 
+                                            className="sr-only peer"
+                                            checked={settings.monguchiMode || false}
+                                            onChange={(e) => setSettings({ ...settings, monguchiMode: e.target.checked })}
+                                        />
+                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-500"></div>
+                                        <span className="ml-3 text-sm font-bold text-slate-700 w-8">{settings.monguchiMode ? 'ON' : 'OFF'}</span>
+                                    </label>
+                                </div>
+                            </h4>
+                            <p className="text-[10px] text-slate-400 mt-2 font-medium">
+                                ※交通費の入力を特定の選択肢のみに制限します。
+                            </p>
                         </div>
 
                     </div>
