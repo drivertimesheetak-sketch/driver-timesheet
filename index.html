@@ -2492,12 +2492,18 @@
                     <div className="p-5 overflow-y-auto space-y-6 bg-white">
                     {/* Type Selection */}
                     <div>
-                        <div className="text-slate-500 text-center py-2 mb-2 font-bold text-xs tracking-wider uppercase border-b border-slate-100">
-                             勤務・休暇 を選択 
+                        <div className="text-blue-800 bg-blue-10 text-center py-3 mb-4 font-bold text-1.5 tracking-wider uppercase border border-blue-200 rounded-xl shadow-sm">
+                             本日の予定 
                         </div>
                         
                         {/* 勤務グループ */}
-                        <div className="mb-4">
+                        <div className="mb-6">
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="bg-blue-100 p-1.5 rounded-lg">
+                                <Briefcase size={16} className="text-blue-600"/>
+                            </div>
+                            <h4 className="font-bold text-slate-700 text-sm">勤務</h4>
+                        </div>
                         <div className="grid grid-cols-3 gap-3">
                             {WORK_TYPES.filter(type => type.group === 'work').map((type) => (
                             <button
@@ -2552,6 +2558,12 @@
 
                         {/* 休暇グループ */}
                         <div>
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="bg-rose-100 p-1.5 rounded-lg">
+                                <Palmtree size={16} className="text-rose-600"/>
+                            </div>
+                            <h4 className="font-bold text-slate-700 text-sm">休暇</h4>
+                        </div>
                         <div className="grid grid-cols-3 gap-3">
                             {WORK_TYPES.filter(type => type.group !== 'work' && type.id !== 'company_holiday').map((type) => (
                             <button
