@@ -3658,7 +3658,7 @@
                             </div>
                             <div className="text-left">
                             <div className="font-bold text-sm">出張手当</div>
-                            <div className="text-[10px] text-slate-400">出張回数に応じた日当の合計</div>
+                            <div className="text-[10px] text-slate-400">出張日数に応じた日当の合計</div>
                             </div>
                         </div>
                         <div className={`transition-transform duration-300 ${isBusinessTripSummaryOpen ? 'rotate-180' : ''}`}>
@@ -3681,8 +3681,8 @@
                                     </div>
                                     <div className="space-y-1 pl-6">
                                         <div className="flex justify-between text-[11px] text-lime-700 font-medium">
-                                            <span>出張回数</span>
-                                            <span>{currentReportSummary.counts['business_trip'] || 0} 回</span>
+                                            <span>出張日数</span>
+                                            <span>{currentReportSummary.counts['business_trip'] || 0} 日</span>
                                         </div>
                                         <div className="flex justify-between text-[11px] text-lime-700 font-medium">
                                             <span>単価</span>
