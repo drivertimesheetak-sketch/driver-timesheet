@@ -2194,7 +2194,7 @@
                             const totalTransportCost = validTransports.reduce((sum, t) => sum + (parseInt(t.cost, 10) || 0), 0);
                             const totalExpenseCost = validExpenses.reduce((sum, e) => sum + (parseInt(e.cost, 10) || 0), 0);
                             const validVehicles = entry?.vehicles?.filter(Boolean) || [];
-                            const validMileages = entry?.mileages?.filter(m => parseFloat(m)) || [];
+                            const validMileages = entry?.mileages?.filter(m => m !== '' && m !== null && m !== undefined && !isNaN(parseFloat(m))) || [];
                             const totalDailyMileage = validMileages.reduce((sum, m) => sum + parseFloat(m), 0);
 
                             return (
@@ -2288,7 +2288,7 @@
                                                     </div>
                                                 )}
 
-                                                {totalDailyMileage > 0 && (
+                                                {validMileages.length > 0 && (
                                                     <div className="flex flex-wrap items-center gap-1.5 text-xs text-indigo-700 mt-1">
                                                         <MapPin size={14} className="shrink-0 text-indigo-600" />
                                                         <span className="bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md text-indigo-800 font-medium">
