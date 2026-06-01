@@ -1535,6 +1535,7 @@
                 let totalTransportCost = 0;
                 let totalExpenseCost = 0;
                 let totalAccommodationSurplus = 0; // 追加
+                let totalNightEarlyMinutes = 0; // 追加: 深夜・早朝手当合計分数
                 const transportBreakdown = {
                     '交通機関': 0, 'ＪＲ': 0, '私鉄': 0, '地下鉄': 0, '新幹線': 0, '特急料金': 0, 'バス': 0, 'タクシー': 0, '飛行機': 0, 'フェリー': 0, '全行程': 0, 'その他': 0
                 };
@@ -1686,6 +1687,15 @@
                                         totalOvertimeMinutes += (diff - standardMinutes);
                                     }
                                 }
+
+                                // 深夜・早朝手当: 00:00〜08:00 と 22:00〜24:00 の重複分を計算
+                                const calcOverlap = (s, e, rangeS, rangeE) => {
+                                    const os = Math.max(s, rangeS);
+                                    const oe = Math.min(e, rangeE);
+                                    return oe > os ? oe - os : 0;
+                                };
+                                const nightEarly = calcOverlap(startMin, endMin, 0, 480) + calcOverlap(startMin, endMin, 1320, 1440);
+                                totalNightEarlyMinutes += nightEarly;
                             }
                         }
                     }
@@ -1709,7 +1719,8 @@
                     expenseBreakdown,
                     counts,
                     vehicleCounts,
-                    totalAccommodationSurplus
+                    totalAccommodationSurplus,
+                    totalNightEarlyMinutes // 追加: 深夜・早朝手当合計分数
                 };
             };
 
@@ -2165,6 +2176,7 @@
                             let hasOvertime = false;
                             let overtimeMin = 0;
                             let holidayWorkMin = 0;
+                            let nightEarlyMin = 0; // 追加: 深夜・早朝手当分数
 
                             if (entry && entry.startTime && entry.endTime) {
                                 const startMin = timeToMinutes(entry.startTime);
@@ -2186,6 +2198,12 @@
                                         hasOvertime = true;
                                         overtimeMin = m - stdMin;
                                     }
+                                }
+
+                                // 深夜・早朝手当: 00:00〜08:00 と 22:00〜24:00 の重複分を計算
+                                if (m > 0) {
+                                    const calcOvlp = (s, e, rs, re) => { const os = Math.max(s, rs); const oe = Math.min(e, re); return oe > os ? oe - os : 0; };
+                                    nightEarlyMin = calcOvlp(startMin, endMin, 0, 480) + calcOvlp(startMin, endMin, 1320, 1440);
                                 }
                             }
 
@@ -2261,6 +2279,11 @@
                                                     {holidayWorkMin > 0 && (
                                                         <span className="text-orange-600 text-xs font-bold flex items-center gap-0.5 ml-1 bg-orange-50 px-1.5 py-0.5 rounded">
                                                             <HardHat size={10} /> 実働 {Math.floor(holidayWorkMin / 60)}h{holidayWorkMin % 60}m
+                                                        </span>
+                                                    )}
+                                                    {nightEarlyMin > 0 && (
+                                                        <span className="text-purple-600 text-xs font-bold flex items-center gap-0.5 ml-1 bg-purple-50 px-1.5 py-0.5 rounded">
+                                                            <Clock size={10} /> 深夜早朝 {Math.floor(nightEarlyMin / 60)}h{nightEarlyMin % 60}m
                                                         </span>
                                                     )}
                                                 </div>
@@ -3485,6 +3508,31 @@
                                                     <div className="text-sm font-bold text-orange-600/90 mt-1 font-mono">
                                                         【¥{Math.floor(((currentReportSummary.holidayWorkHours * 60 + currentReportSummary.holidayWorkMinutes) / 60) * (settings.holidayWorkHourlyRate || 0)).toLocaleString()}】
                                                     </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white p-4 rounded-2xl border border-purple-100/50 shadow-sm mx-4 mb-4">
+                                        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-purple-50">
+                                            <Clock size={16} className="text-purple-600" />
+                                            <h4 className="font-bold text-slate-700 text-sm">深夜・早朝手当</h4>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="text-center">
+                                                <div className="text-xs text-purple-500 font-bold mb-1 uppercase tracking-wider">対象時間</div>
+                                                <div className="text-2xl font-bold text-purple-700 font-mono tracking-tight">
+                                                    {Math.floor((currentReportSummary.totalNightEarlyMinutes || 0) / 60)}<span className="text-xs ml-0.5 text-purple-400">h</span>
+                                                    {String((currentReportSummary.totalNightEarlyMinutes || 0) % 60).padStart(2, '0')}<span className="text-xs ml-0.5 text-purple-400">m</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-center border-l border-purple-100">
+                                                <div className="text-xs text-purple-600 font-bold mb-1 uppercase tracking-wider">手当金額</div>
+                                                <div className="text-2xl font-bold text-purple-700 font-mono tracking-tight">
+                                                    ¥{Math.floor(((currentReportSummary.totalNightEarlyMinutes || 0) / 60) * 400).toLocaleString()}
+                                                </div>
+                                                <div className="text-sm font-bold text-purple-500/90 mt-1 font-mono">
+                                                    【¥{Math.floor(((currentReportSummary.totalNightEarlyMinutes || 0) / 60) * 400).toLocaleString()}】
                                                 </div>
                                             </div>
                                         </div>
