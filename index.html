@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 
@@ -662,6 +663,27 @@
             const [touchEnd, setTouchEnd] = useState(null);
             const minSwipeDistance = 50;
 
+            // ② テンプレート機能
+            const [templates, setTemplates] = useState([]);
+            const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+            const [templateName, setTemplateName] = useState('');
+
+            // ④ 連続日入力モード
+            const [isBulkMode, setIsBulkMode] = useState(false);
+            const [bulkSelectedDates, setBulkSelectedDates] = useState([]);
+            const [isBulkInputModalOpen, setIsBulkInputModalOpen] = useState(false);
+
+
+
+            // ⑦ 今日のバナー
+            const [isTodayBannerDismissed, setIsTodayBannerDismissed] = useState(false);
+
+            // ⑩ 交通費ピン留め（手動登録・無制限・localStorageで永続化）
+            const [pinnedTransports, setPinnedTransports] = useState([]);
+            const [pinLongPressTimer, setPinLongPressTimer] = useState(null);
+            const [pinDeleteTargetId, setPinDeleteTargetId] = useState(null);
+            const [isPinDropdownOpen, setIsPinDropdownOpen] = useState(false);
+
             // 車両マスタ編集用のState
             const [addingVehicleCategory, setAddingVehicleCategory] = useState(null);
             const [newVehicleName, setNewVehicleName] = useState('');
@@ -852,7 +874,7 @@
             useEffect(() => {
                 const hasOpenModal = isModalOpen || isSummaryModalOpen || isVehicleSettingsOpen ||
                     isConfigModalOpen || isWelcomeModalOpen || isDatePickerOpen ||
-                    !!dateToDelete || !!deleteConfirmation;
+                    !!dateToDelete || !!deleteConfirmation || isBulkInputModalOpen;
 
                 if (hasOpenModal) {
                     document.body.style.overflow = 'hidden';
@@ -900,6 +922,16 @@
                         if (savedTheme) {
                             setThemeColor(savedTheme);
                         }
+
+                        const savedTemplates = localStorage.getItem('workTrackerTemplates');
+                        if (savedTemplates) {
+                            setTemplates(JSON.parse(savedTemplates));
+                        }
+
+                        const savedPinned = localStorage.getItem('workTrackerPinnedTransports');
+                        if (savedPinned) {
+                            setPinnedTransports(JSON.parse(savedPinned));
+                        }
                     } catch (error) {
                         console.error("Failed to load data from localStorage", error);
                         showToast("データの読み込みに失敗しました", "error");
@@ -937,6 +969,18 @@
                 if (!isDataLoaded) return;
                 localStorage.setItem('workTrackerTheme', themeColor);
             }, [themeColor, isDataLoaded]);
+
+            // 自動保存：テンプレート
+            useEffect(() => {
+                if (!isDataLoaded) return;
+                localStorage.setItem('workTrackerTemplates', JSON.stringify(templates));
+            }, [templates, isDataLoaded]);
+
+            // 自動保存：交通費ピン留め
+            useEffect(() => {
+                if (!isDataLoaded) return;
+                localStorage.setItem('workTrackerPinnedTransports', JSON.stringify(pinnedTransports));
+            }, [pinnedTransports, isDataLoaded]);
 
             // アプリライクな表示（PWA/フルスクリーン）のためのメタタグ設定
             useEffect(() => {
@@ -1105,23 +1149,82 @@
                 let finalNote = tempEntry.note;
                 if (tempEntry.isDeemed && tempEntry.deemedTime) {
                     const deemedStr = `みなし退勤: ${tempEntry.deemedTime}`;
-                    // noteがundefinedの場合は空文字にする
                     const currentNote = finalNote || '';
                     if (!currentNote.includes(deemedStr)) {
                         finalNote = currentNote ? `${currentNote}\n${deemedStr}` : deemedStr;
                     }
                 }
 
-                setWorkData(prev => ({
-                    ...prev,
-                    [selectedDate]: {
-                        ...tempEntry,
-                        note: finalNote,
-                        breakTime: undefined
-                    }
-                }));
+                // 翌日の自動登録用データを計算
+                const getNextDateKey = (dateKey) => {
+                    const [y, m, d] = dateKey.split('-').map(Number);
+                    const next = new Date(y, m - 1, d + 1);
+                    return `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}-${String(next.getDate()).padStart(2,'0')}`;
+                };
 
-                // バイブレーション (追加)
+                const defaultTransportations = Array.from({ length: 10 }, () => ({ name: '', cost: '', mode: settings.monguchiMode ? '全行程' : '交通機関' }));
+                const defaultExpenses = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
+                const defaultVehicles = Array.from({ length: 10 }, () => '');
+                const defaultMileages = Array.from({ length: 5 }, () => '');
+
+                setWorkData(prev => {
+                    const updated = {
+                        ...prev,
+                        [selectedDate]: {
+                            ...tempEntry,
+                            note: finalNote,
+                            breakTime: undefined
+                        }
+                    };
+
+                    // 「泊り」保存時 → 翌日に「明け」を自動登録（翌日データがない場合のみ）
+                    if (tempEntry.type === 'overnight') {
+                        const nextKey = getNextDateKey(selectedDate);
+                        if (!prev[nextKey]) {
+                            updated[nextKey] = {
+                                type: 'post_night',
+                                workPatternId: 'long',
+                                startTime: '00:00',
+                                endTime: '11:30',
+                                note: '',
+                                isSiteStart: false, isSiteEnd: false,
+                                isTempOvernight: false, isDeemed: false, deemedTime: '',
+                                isDetention: false, isPickup: false,
+                                isHolidayWork: false, holidayWorkType: null,
+                                transportations: defaultTransportations,
+                                expenses: defaultExpenses,
+                                vehicles: defaultVehicles,
+                                mileages: defaultMileages,
+                            };
+                        }
+                    }
+
+                    // 「8泊り」保存時 → 翌日に「8明け」を自動登録（翌日データがない場合のみ）
+                    if (tempEntry.type === '8overnight') {
+                        const nextKey = getNextDateKey(selectedDate);
+                        if (!prev[nextKey]) {
+                            updated[nextKey] = {
+                                type: '8post_night',
+                                workPatternId: 'standard',
+                                startTime: '00:00',
+                                endTime: '09:00',
+                                note: '',
+                                isSiteStart: false, isSiteEnd: false,
+                                isTempOvernight: false, isDeemed: false, deemedTime: '',
+                                isDetention: false, isPickup: false,
+                                isHolidayWork: true, holidayWorkType: '8post_night',
+                                transportations: defaultTransportations,
+                                expenses: defaultExpenses,
+                                vehicles: defaultVehicles,
+                                mileages: defaultMileages,
+                            };
+                        }
+                    }
+
+                    return updated;
+                });
+
+                // バイブレーション
                 if (navigator.vibrate) {
                     navigator.vibrate(50);
                 }
@@ -1207,6 +1310,147 @@
                 setIsResetViewOpen(false); // リセット画面は閉じておく
                 setResetPasscode('');
                 setIsConfigModalOpen(true);
+            };
+
+            // ② テンプレート保存
+            const saveAsTemplate = () => {
+                if (!templateName.trim() || !tempEntry.type) return;
+                const newTemplate = {
+                    id: Date.now(),
+                    name: templateName.trim(),
+                    entry: { ...tempEntry }
+                };
+                setTemplates(prev => [...prev, newTemplate]);
+                setTemplateName('');
+                setIsTemplateModalOpen(false);
+                showToast(`テンプレート「${newTemplate.name}」を保存しました`);
+            };
+
+            const applyTemplate = (template) => {
+                const defaultTransportations = Array.from({ length: 10 }, () => ({ name: '', cost: '', mode: settings.monguchiMode ? '全行程' : '交通機関' }));
+                const defaultExpenses = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
+                const defaultVehicles = Array.from({ length: 10 }, () => '');
+                const defaultMileages = Array.from({ length: 5 }, () => '');
+                setTempEntry({
+                    ...template.entry,
+                    transportations: template.entry.transportations || defaultTransportations,
+                    expenses: template.entry.expenses || defaultExpenses,
+                    vehicles: template.entry.vehicles || defaultVehicles,
+                    mileages: template.entry.mileages || defaultMileages,
+                });
+                showToast(`「${template.name}」を適用しました`);
+            };
+
+            const deleteTemplate = (id) => {
+                setTemplates(prev => prev.filter(t => t.id !== id));
+            };
+
+            // ④ 連続日入力モード
+            const toggleBulkDateSelect = (dateKey) => {
+                setBulkSelectedDates(prev =>
+                    prev.includes(dateKey)
+                        ? prev.filter(d => d !== dateKey)
+                        : [...prev, dateKey]
+                );
+            };
+
+            const openBulkInputModal = () => {
+                if (bulkSelectedDates.length === 0) return;
+                const defaultTransportations = Array.from({ length: 10 }, () => ({ name: '', cost: '', mode: settings.monguchiMode ? '全行程' : '交通機関' }));
+                const defaultExpenses = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
+                setTempEntry({
+                    startTime: '09:00', endTime: '18:00',
+                    type: null, workPatternId: 'standard', note: '',
+                    isSiteStart: false, isSiteEnd: false, isTempOvernight: false,
+                    isDeemed: false, deemedTime: '', isDetention: false, isPickup: false,
+                    isHolidayWork: false, holidayWorkType: null,
+                    transportations: defaultTransportations,
+                    expenses: defaultExpenses,
+                    vehicles: Array.from({ length: 10 }, () => ''),
+                    mileages: Array.from({ length: 5 }, () => ''),
+                });
+                setIsBulkInputModalOpen(true);
+            };
+
+            const handleBulkSave = () => {
+                const newData = { ...workData };
+                let finalNote = tempEntry.note;
+                bulkSelectedDates.forEach(dateKey => {
+                    newData[dateKey] = { ...tempEntry, note: finalNote, breakTime: undefined };
+                });
+                setWorkData(newData);
+                if (navigator.vibrate) navigator.vibrate(50);
+                setBulkSelectedDates([]);
+                setIsBulkMode(false);
+                setIsBulkInputModalOpen(false);
+                showToast(`${bulkSelectedDates.length}件のデータを一括登録しました`);
+            };
+
+
+
+            // ⑩ 交通費ピン留め適用
+            const applyPinnedTransport = (pinned, index) => {
+                const newTrans = [...tempEntry.transportations];
+                const from = pinned.from || '';
+                const to   = pinned.to   || '';
+                const mode = pinned.mode || '交通機関';
+                const onewayCost = pinned.onewayCost || 0;
+                const isRT = pinned.isRT || false;
+
+                // 往復なら金額を2倍、name に (往復) を付ける
+                const appliedCost = isRT ? onewayCost * 2 : onewayCost;
+                let name = (from || to) ? `${from} → ${to}（${mode}）` : '';
+                if (isRT) name += ' (往復)';
+
+                newTrans[index] = {
+                    ...newTrans[index],
+                    from,
+                    to,
+                    mode,
+                    cost: appliedCost > 0 ? String(appliedCost) : '',
+                    name,
+                };
+                setTempEntry({ ...tempEntry, transportations: newTrans });
+            };
+
+            // ⑩ 交通費ピン登録
+            const registerPinnedTransport = (trans) => {
+                const from = trans.from || '';
+                const to   = trans.to   || '';
+                const mode = trans.mode || '交通機関';
+                const isRT = !!(trans.name && trans.name.includes('(往復)'));
+                const rawCost = parseInt(trans.cost, 10) || 0;
+                const onewayCost = isRT ? Math.round(rawCost / 2) : rawCost;
+
+                if (!from && !to) {
+                    showToast('乗車場所か降車場所を入力してください', 'error');
+                    return;
+                }
+                if (!onewayCost) {
+                    showToast('金額を入力してください', 'error');
+                    return;
+                }
+
+                const newPin = { id: Date.now(), from, to, mode, onewayCost, isRT };
+                setPinnedTransports(prev => [...prev, newPin]);
+                showToast('📌 ピン留めに登録しました');
+            };
+
+            // ⑩ 交通費ピン留め長押し削除
+            const startPinLongPress = (id) => {
+                const timer = setTimeout(() => {
+                    setPinDeleteTargetId(id);
+                }, 600);
+                setPinLongPressTimer(timer);
+            };
+            const cancelPinLongPress = () => {
+                if (pinLongPressTimer) clearTimeout(pinLongPressTimer);
+                setPinLongPressTimer(null);
+            };
+            const deletePinnedTransport = (id) => {
+                setPinnedTransports(prev => prev.filter(p => p.id !== id));
+                setPinDeleteTargetId(null);
+                showToast('ピン留めを削除しました');
             };
 
             // ... (Export/Import/Vehicle logic unchanged) ...
@@ -2050,29 +2294,45 @@
                     calendarDays.push(
                         <div
                             key={day}
-                            onMouseDown={() => handleLongPressStart(dateKey)}
+                            onMouseDown={() => !isBulkMode && handleLongPressStart(dateKey)}
                             onMouseUp={handleLongPressEnd}
                             onMouseLeave={handleLongPressEnd}
-                            onTouchStart={() => handleLongPressStart(dateKey)}
+                            onTouchStart={() => !isBulkMode && handleLongPressStart(dateKey)}
                             onTouchEnd={handleLongPressEnd}
                             onTouchMove={handleLongPressEnd}
                             onClick={() => {
+                                if (isBulkMode) {
+                                    toggleBulkDateSelect(dateKey);
+                                    return;
+                                }
                                 if (!isLongPressRef.current) {
                                     handleDateClick(dateObj);
                                 }
                             }}
                             className={`min-h-[6.5rem] h-auto border-r border-b border-slate-100 p-1.5 relative cursor-pointer active:bg-blue-50/50 transition-colors flex flex-col gap-1 group
-                    ${isToday ? 'bg-white' : isHoliday ? 'bg-rose-50/30' : 'bg-white hover:bg-slate-50'}
+                    ${isBulkMode && bulkSelectedDates.includes(dateKey) ? 'bg-blue-50 ring-2 ring-inset ring-blue-400' : isToday ? 'bg-white' : isHoliday ? 'bg-rose-50/30' : 'bg-white hover:bg-slate-50'}
                 `}
                         >
                             <div className={`text-xs font-semibold ${getDayColor(dayOfWeek, isHoliday)} flex justify-between items-start`}>
                                 <span className={isToday ? "bg-blue-600 text-white rounded-md w-6 h-6 flex items-center justify-center shrink-0 shadow-sm shadow-blue-200" : "w-6 h-6 flex items-center justify-center"}>
                                     {day}
                                 </span>
-                                {isHoliday && (
-                                    <span className="text-[10px] font-medium text-rose-500 text-right leading-tight max-w-[4.5em] truncate ml-1 bg-white/50 px-1 rounded">
-                                        {holidayName}
+                                {isBulkMode ? (
+                                    <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${bulkSelectedDates.includes(dateKey) ? 'bg-blue-500 border-blue-500' : 'border-slate-300 bg-white'}`}>
+                                        {bulkSelectedDates.includes(dateKey) && <CheckCircle2 size={12} className="text-white" />}
                                     </span>
+                                ) : (
+                                    <>
+                                        {/* ③ 未入力バッジ：過去日かつデータなし（休日以外）のとき */}
+                                        {!entry && dateObj < new Date(new Date().setHours(0,0,0,0)) && dayOfWeek !== 0 && !isHoliday && !isCompanyHoliday && (
+                                            <span className="text-[9px] font-bold text-red-500 bg-red-50 border border-red-200 rounded-full w-4 h-4 flex items-center justify-center shrink-0 leading-none">!</span>
+                                        )}
+                                        {isHoliday && (
+                                            <span className="text-[10px] font-medium text-rose-500 text-right leading-tight max-w-[4.5em] truncate ml-1 bg-white/50 px-1 rounded">
+                                                {holidayName}
+                                            </span>
+                                        )}
+                                    </>
                                 )}
                             </div>
 
@@ -2134,8 +2394,22 @@
                             <div className="uppercase tracking-wider">金</div>
                             <div className="text-blue-500 uppercase tracking-wider">土</div>
                         </div>
-                        <div className="grid grid-cols-7 border-l border-b border-slate-100 pb-20 bg-white shadow-soft rounded-b-2xl mx-1 overflow-hidden">
+                        <div className="grid grid-cols-7 border-l border-b border-slate-100 bg-white shadow-soft mx-1 overflow-hidden">
                             {calendarDays}
+                        </div>
+                        {/* ④ 一括入力ボタン（カレンダー最下段・右端） */}
+                        <div className="flex justify-end px-2 py-2 mx-1 mb-20 bg-white rounded-b-2xl border-l border-r border-b border-slate-100 shadow-soft">
+                            <button
+                                onClick={() => { setIsBulkMode(v => !v); setBulkSelectedDates([]); }}
+                                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm border
+                                    ${isBulkMode
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-blue-200'
+                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                    }`}
+                            >
+                                <LayoutGrid size={14} strokeWidth={2.5} />
+                                {isBulkMode ? '一括入力モード中' : '一括入力'}
+                            </button>
                         </div>
                     </>
                 );
@@ -2243,6 +2517,10 @@
                                             {d}
                                         </span>
                                         {isHoliday && <div className="text-[10px] text-rose-500 font-bold text-center leading-tight break-words w-full bg-rose-50 rounded px-1 py-0.5">{holidayName}</div>}
+                                        {/* ③ 未入力バッジ */}
+                                        {!entry && dateObj < new Date(new Date().setHours(0,0,0,0)) && dayOfWeek !== 0 && !isHoliday && !isCompanyHoliday && (
+                                            <span className="text-[9px] font-bold text-red-500 bg-red-50 border border-red-200 rounded-full px-1.5 py-0.5 whitespace-nowrap">未入力</span>
+                                        )}
                                     </div>
 
                                     {/* 詳細コンテンツカラム - 縦に伸びる設定 */}
@@ -2475,6 +2753,48 @@
                         </div>
                     </header>
 
+                    {/* ⑦ 今日のステータスバナー */}
+                    {!isTodayBannerDismissed && (() => {
+                        const today = new Date();
+                        const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+                        const todayEntry = workData[todayKey];
+                        const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+                        if (!isCurrentMonth) return null;
+                        return (
+                            <div className={`mx-3 mt-2 mb-1 px-3 py-2 rounded-xl flex items-center justify-between gap-2 text-xs font-bold shadow-sm border ${todayEntry ? 'bg-blue-50 border-blue-100 text-blue-800' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
+                                <div className="flex items-center gap-2">
+                                    <span className={`w-2 h-2 rounded-full ${todayEntry ? 'bg-blue-500' : 'bg-amber-400 animate-pulse'}`}></span>
+                                    <span>
+                                        {todayEntry
+                                            ? `本日(${today.getMonth()+1}/${today.getDate()}): ${WORK_TYPES.find(t=>t.id===todayEntry.type)?.label || ''}${todayEntry.startTime ? ` ${todayEntry.startTime}〜${todayEntry.endTime}` : ''}`
+                                            : `本日(${today.getMonth()+1}/${today.getDate()})はまだ未入力です`
+                                        }
+                                    </span>
+                                </div>
+                                <button onClick={() => setIsTodayBannerDismissed(true)} className="text-slate-400 hover:text-slate-600 ml-1">
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        );
+                    })()}
+
+                    {/* ④ 連続日入力モードのツールバー */}
+                    {isBulkMode && (
+                        <div className="mx-3 mt-2 mb-1 px-3 py-2 rounded-xl flex items-center justify-between gap-2 bg-blue-600 text-white text-xs font-bold shadow-md">
+                            <span>{bulkSelectedDates.length > 0 ? `${bulkSelectedDates.length}日を選択中` : '入力する日付をタップしてください'}</span>
+                            <div className="flex gap-2">
+                                {bulkSelectedDates.length > 0 && (
+                                    <button onClick={openBulkInputModal} className="bg-white text-blue-600 px-3 py-1.5 rounded-lg font-bold text-xs shadow-sm">
+                                        入力する
+                                    </button>
+                                )}
+                                <button onClick={() => { setIsBulkMode(false); setBulkSelectedDates([]); }} className="bg-blue-500 px-3 py-1.5 rounded-lg font-bold text-xs">
+                                    キャンセル
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Main Content */}
                     <div
                         key={currentDate.toISOString()} // keyを変えてアニメーション発火
@@ -2551,6 +2871,29 @@
                                 </div>
 
                                 <div className="p-5 overflow-y-auto space-y-6 bg-white">
+                                    {/* ② テンプレート選択エリア */}
+                                    {templates.length > 0 && (
+                                        <div className="bg-indigo-50/70 rounded-2xl border border-indigo-100 p-3">
+                                            <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                                <Sparkles size={12} /> テンプレートから適用
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {templates.map(tpl => (
+                                                    <div key={tpl.id} className="flex items-center gap-1">
+                                                        <button
+                                                            onClick={() => applyTemplate(tpl)}
+                                                            className="text-xs font-bold bg-white text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl hover:bg-indigo-100 transition-colors shadow-sm"
+                                                        >
+                                                            {tpl.name}
+                                                        </button>
+                                                        <button onClick={() => deleteTemplate(tpl.id)} className="text-slate-300 hover:text-red-400 transition-colors">
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                     {/* Type Selection */}
                                     <div>
                                         <div className="text-blue-800 bg-blue-10 text-center py-3 mb-4 font-bold text-1.5 tracking-wider uppercase border border-blue-200 rounded-xl shadow-sm">
@@ -2878,6 +3221,87 @@
                                                     </div>
                                                 </div>
 
+                                                {/* ⑩ ピン留め一覧（プルダウン・長押し削除） */}
+                                                {pinnedTransports.length > 0 && (
+                                                    <div className="border-b border-amber-100">
+                                                        {/* ヘッダー（開閉トグル） */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { setIsPinDropdownOpen(v => !v); setPinDeleteTargetId(null); }}
+                                                            className="w-full px-3 py-2 flex items-center justify-between bg-amber-50/60 hover:bg-amber-100/60 transition-colors"
+                                                        >
+                                                            <span className="text-[11px] font-bold text-amber-700 flex items-center gap-1">
+                                                                <span>📌</span> ピン留め登録済み（{pinnedTransports.length}件）
+                                                            </span>
+                                                            <span className={`text-amber-500 transition-transform duration-200 ${isPinDropdownOpen ? 'rotate-180' : ''}`}>
+                                                                ▼
+                                                            </span>
+                                                        </button>
+
+                                                        {/* ドロップダウン本体 */}
+                                                        {isPinDropdownOpen && (
+                                                            <div className="px-3 pb-3 pt-2 bg-amber-50/30">
+                                                                <div className="text-[10px] text-amber-600 mb-2 font-medium">タップで入力・長押しで削除</div>
+                                                                <div className="flex flex-col gap-1.5">
+                                                                    {pinnedTransports.map((p) => {
+                                                                        const firstEmpty = tempEntry.transportations.findIndex(t => !t.name && !t.cost);
+                                                                        const targetIdx = firstEmpty >= 0 ? firstEmpty : 0;
+                                                                        const displayLabel = [p.from, p.to].filter(Boolean).join(' → ') || '―';
+                                                                        const displayCost = p.isRT ? p.onewayCost * 2 : p.onewayCost;
+                                                                        const isDelTarget = pinDeleteTargetId === p.id;
+                                                                        return (
+                                                                            <div key={p.id} className="flex gap-2 items-center">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        if (isDelTarget) { setPinDeleteTargetId(null); return; }
+                                                                                        applyPinnedTransport(p, targetIdx);
+                                                                                        setIsPinDropdownOpen(false);
+                                                                                    }}
+                                                                                    onMouseDown={() => startPinLongPress(p.id)}
+                                                                                    onMouseUp={cancelPinLongPress}
+                                                                                    onMouseLeave={cancelPinLongPress}
+                                                                                    onTouchStart={() => startPinLongPress(p.id)}
+                                                                                    onTouchEnd={cancelPinLongPress}
+                                                                                    onTouchMove={cancelPinLongPress}
+                                                                                    className={`flex-1 flex items-center justify-between gap-2 text-[11px] font-bold px-3 py-2 rounded-xl border transition-all select-none text-left
+                                                                                        ${isDelTarget
+                                                                                            ? 'bg-red-100 text-red-700 border-red-300 animate-pulse'
+                                                                                            : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-100 active:scale-[0.98] shadow-sm'
+                                                                                        }`}
+                                                                                >
+                                                                                    {isDelTarget ? (
+                                                                                        <span className="flex items-center gap-1"><span>🗑️</span><span>タップで削除</span></span>
+                                                                                    ) : (
+                                                                                        <>
+                                                                                            <span className="flex items-center gap-1.5 min-w-0">
+                                                                                                <span className="shrink-0">📌</span>
+                                                                                                <span className="truncate">{displayLabel}</span>
+                                                                                                <span className="text-amber-500 shrink-0">({p.mode})</span>
+                                                                                                {p.isRT && <span className="bg-amber-500 text-white px-1.5 py-0.5 rounded-full text-[9px] shrink-0">往復</span>}
+                                                                                            </span>
+                                                                                            <span className="font-mono text-amber-700 shrink-0">¥{displayCost.toLocaleString()}</span>
+                                                                                        </>
+                                                                                    )}
+                                                                                </button>
+                                                                                {isDelTarget && (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => deletePinnedTransport(p.id)}
+                                                                                        className="px-3 py-2 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors shrink-0"
+                                                                                    >
+                                                                                        削除
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
                                                 <div className="p-3">
                                                     <div className="space-y-4"> {/* Spacing between sets */}
                                                         {tempEntry.transportations.map((trans, index) => {
@@ -3152,6 +3576,16 @@
                                                                             >
                                                                                 往復
                                                                             </button>
+
+                                                                            {/* 📌 ピン留め登録ボタン */}
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => registerPinnedTransport(trans)}
+                                                                                className="px-2.5 py-2.5 rounded-lg text-xs font-bold transition-all border shadow-sm whitespace-nowrap bg-white text-amber-600 border-amber-300 hover:bg-amber-50 active:scale-95"
+                                                                                title="この交通費をピン留め登録"
+                                                                            >
+                                                                                📌
+                                                                            </button>
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -3332,21 +3766,41 @@
                                     )}
                                 </div>
 
-                                <div className="p-4 border-t border-slate-100 bg-white flex gap-3 shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)] z-20" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
-                                    <button
-                                        onClick={handleDelete}
-                                        className="p-4 text-red-500 bg-red-50 hover:bg-red-100 rounded-2xl flex items-center justify-center transition-colors"
-                                        title="この日の記録を削除"
-                                    >
-                                        <Trash2 size={24} />
-                                    </button>
-                                    <button
-                                        onClick={handleSave}
-                                        className="flex-1 bg-blue-600 text-white font-bold py-3 px-4 rounded-2xl hover:bg-blue-700 shadow-lg shadow-blue-600/30 active:transform active:scale-95 transition-all flex justify-center items-center gap-2 text-lg"
-                                    >
-                                        <Save size={22} />
-                                        保存する
-                                    </button>
+                                <div className="p-4 border-t border-slate-100 bg-white flex flex-col gap-2 shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)] z-20" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
+                                    {/* ② テンプレート保存行 */}
+                                    {isTemplateModalOpen ? (
+                                        <div className="flex gap-2 animate-in fade-in slide-in-from-top-1">
+                                            <input
+                                                type="text"
+                                                placeholder="テンプレート名"
+                                                value={templateName}
+                                                onChange={e => setTemplateName(e.target.value)}
+                                                className="flex-1 p-2.5 text-sm border border-indigo-200 rounded-xl bg-indigo-50 focus:ring-2 focus:ring-indigo-500/20 outline-none font-bold text-slate-700"
+                                            />
+                                            <button onClick={saveAsTemplate} disabled={!templateName.trim()} className={`px-4 py-2 rounded-xl font-bold text-sm text-white shadow-sm transition-all ${templateName.trim() ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-300'}`}>保存</button>
+                                            <button onClick={() => setIsTemplateModalOpen(false)} className="px-3 py-2 rounded-xl font-bold text-sm text-slate-500 bg-slate-100 hover:bg-slate-200">✕</button>
+                                        </div>
+                                    ) : (
+                                        <button onClick={() => setIsTemplateModalOpen(true)} className="w-full py-2 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-xl hover:bg-indigo-100 transition-colors flex items-center justify-center gap-1">
+                                            <Sparkles size={12} /> この入力内容をテンプレートとして保存
+                                        </button>
+                                    )}
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={handleDelete}
+                                            className="p-4 text-red-500 bg-red-50 hover:bg-red-100 rounded-2xl flex items-center justify-center transition-colors"
+                                            title="この日の記録を削除"
+                                        >
+                                            <Trash2 size={24} />
+                                        </button>
+                                        <button
+                                            onClick={handleSave}
+                                            className="flex-1 bg-blue-600 text-white font-bold py-3 px-4 rounded-2xl hover:bg-blue-700 shadow-lg shadow-blue-600/30 active:transform active:scale-95 transition-all flex justify-center items-center gap-2 text-lg"
+                                        >
+                                            <Save size={22} />
+                                            保存する
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -4012,6 +4466,69 @@
                                         className="w-full bg-slate-100 border border-slate-200 text-slate-700 font-bold py-3.5 rounded-2xl hover:bg-slate-200 shadow-sm transition-colors"
                                     >
                                         閉じる
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ④ 連続日一括入力モーダル */}
+                    {isBulkInputModalOpen && (
+                        <div className="fixed inset-0 bg-slate-900/40 z-[1050] flex items-end sm:items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
+                            <div className="w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] bg-white ring-1 ring-white/20" onClick={(e) => e.stopPropagation()}>
+                                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white/50 backdrop-blur-md">
+                                    <h3 className="font-bold text-xl text-slate-800 tracking-tight flex items-center gap-2">
+                                        <LayoutGrid size={20} className="text-blue-600" />
+                                        {bulkSelectedDates.length}日分を一括入力
+                                    </h3>
+                                    <button onClick={() => setIsBulkInputModalOpen(false)} className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors text-slate-500">
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                                <div className="px-5 py-3 bg-blue-50 border-b border-blue-100">
+                                    <div className="text-xs font-bold text-blue-700 mb-1">選択中の日付</div>
+                                    <div className="flex flex-wrap gap-1">
+                                        {bulkSelectedDates.sort().map(dk => {
+                                            const [y,m,d] = dk.split('-').map(Number);
+                                            return <span key={dk} className="text-[10px] font-bold bg-white text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">{m}/{d}</span>;
+                                        })}
+                                    </div>
+                                </div>
+                                <div className="p-5 overflow-y-auto space-y-4 bg-white">
+                                    {/* 勤務種別 */}
+                                    <div>
+                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">勤務区分</div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {WORK_TYPES.slice(0, 9).map(type => (
+                                                <button key={type.id} onClick={() => setTempEntry({...tempEntry, type: type.id})}
+                                                    className={`text-sm py-2.5 px-2 rounded-xl border font-bold transition-all ${tempEntry.type === type.id ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-white'}`}>
+                                                    {type.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    {/* 時間 */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1"><Clock size={12}/>開始</div>
+                                            <TimeSelect value={tempEntry.startTime} onChange={(v) => setTempEntry({...tempEntry, startTime: v})} minuteOptions={Array.from({length:60},(_,i)=>i)} />
+                                        </div>
+                                        <div>
+                                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1"><Clock size={12}/>終了</div>
+                                            <TimeSelect value={tempEntry.endTime} onChange={(v) => setTempEntry({...tempEntry, endTime: v})} minuteOptions={Array.from({length:60},(_,i)=>i)} />
+                                        </div>
+                                    </div>
+                                    {/* 備考 */}
+                                    <div>
+                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1"><FileText size={12}/>備考</div>
+                                        <textarea value={tempEntry.note} onChange={e => setTempEntry({...tempEntry, note: e.target.value})}
+                                            placeholder="共通メモ（全日付に反映）" className="w-full p-3 border-0 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none min-h-[70px] shadow-inner text-sm" />
+                                    </div>
+                                </div>
+                                <div className="p-4 border-t border-slate-100 bg-white shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)]" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
+                                    <button onClick={handleBulkSave} disabled={!tempEntry.type}
+                                        className={`w-full font-bold py-3.5 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all ${tempEntry.type ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
+                                        <Save size={22} /> {bulkSelectedDates.length}日分を一括保存
                                     </button>
                                 </div>
                             </div>
