@@ -1,6 +1,7 @@
 
 
 
+
 <!DOCTYPE html>
 <html lang="ja">
 
@@ -1364,6 +1365,19 @@
                 setTemplates(prev => prev.filter(t => t.id !== id));
             };
 
+            // ② テンプレート並び替え
+            const moveTemplate = (id, direction) => {
+                setTemplates(prev => {
+                    const idx = prev.findIndex(t => t.id === id);
+                    if (idx === -1) return prev;
+                    const newIdx = idx + direction;
+                    if (newIdx < 0 || newIdx >= prev.length) return prev;
+                    const next = [...prev];
+                    [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+                    return next;
+                });
+            };
+
             // ④ 連続日入力モード
             const toggleBulkDateSelect = (dateKey) => {
                 setBulkSelectedDates(prev =>
@@ -1470,6 +1484,18 @@
                 setPinnedTransports(prev => prev.filter(p => p.id !== id));
                 setPinDeleteTargetId(null);
                 showToast('ピン留めを削除しました');
+            };
+            // ⑩ 交通費ピン留め並び替え
+            const movePinnedTransport = (id, direction) => {
+                setPinnedTransports(prev => {
+                    const idx = prev.findIndex(p => p.id === id);
+                    if (idx === -1) return prev;
+                    const newIdx = idx + direction;
+                    if (newIdx < 0 || newIdx >= prev.length) return prev;
+                    const next = [...prev];
+                    [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+                    return next;
+                });
             };
 
             // ... (Export/Import/Vehicle logic unchanged) ...
@@ -2932,8 +2958,22 @@
                                             </button>
                                             {isTemplateAreaOpen && (
                                                 <div className="flex flex-wrap gap-2 mt-2">
-                                                    {templates.map(tpl => (
+                                                    {templates.map((tpl, idx) => (
                                                         <div key={tpl.id} className="flex items-center gap-1">
+                                                            <div className="flex flex-col">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => moveTemplate(tpl.id, -1)}
+                                                                    disabled={idx === 0}
+                                                                    className={`px-0.5 leading-none text-[9px] ${idx === 0 ? 'text-slate-200' : 'text-indigo-400 hover:text-indigo-600'}`}
+                                                                >▲</button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => moveTemplate(tpl.id, 1)}
+                                                                    disabled={idx === templates.length - 1}
+                                                                    className={`px-0.5 leading-none text-[9px] ${idx === templates.length - 1 ? 'text-slate-200' : 'text-indigo-400 hover:text-indigo-600'}`}
+                                                                >▼</button>
+                                                            </div>
                                                             <button
                                                                 onClick={() => applyTemplate(tpl)}
                                                                 className="text-xs font-bold bg-white text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl hover:bg-indigo-100 transition-colors shadow-sm"
@@ -3298,7 +3338,7 @@
                                                             <div className="px-3 pb-3 pt-2 bg-amber-50/30">
                                                                 <div className="text-[10px] text-amber-600 mb-2 font-medium">タップで入力・長押しで削除</div>
                                                                 <div className="flex flex-col gap-1.5">
-                                                                    {pinnedTransports.map((p) => {
+                                                                    {pinnedTransports.map((p, pIdx) => {
                                                                         const firstEmpty = tempEntry.transportations.findIndex(t => !t.name && !t.cost);
                                                                         const targetIdx = firstEmpty >= 0 ? firstEmpty : 0;
                                                                         const displayLabel = [p.from, p.to].filter(Boolean).join(' → ') || '―';
@@ -3306,6 +3346,20 @@
                                                                         const isDelTarget = pinDeleteTargetId === p.id;
                                                                         return (
                                                                             <div key={p.id} className="flex gap-2 items-center">
+                                                                                <div className="flex flex-col shrink-0">
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => movePinnedTransport(p.id, -1)}
+                                                                                        disabled={pIdx === 0}
+                                                                                        className={`px-0.5 leading-none text-[9px] ${pIdx === 0 ? 'text-slate-200' : 'text-amber-400 hover:text-amber-600'}`}
+                                                                                    >▲</button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => movePinnedTransport(p.id, 1)}
+                                                                                        disabled={pIdx === pinnedTransports.length - 1}
+                                                                                        className={`px-0.5 leading-none text-[9px] ${pIdx === pinnedTransports.length - 1 ? 'text-slate-200' : 'text-amber-400 hover:text-amber-600'}`}
+                                                                                    >▼</button>
+                                                                                </div>
                                                                                 <button
                                                                                     type="button"
                                                                                     onClick={() => {
