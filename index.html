@@ -4004,17 +4004,47 @@
                                     {/* Tab Switcher */}
                                     <div className="flex bg-slate-100 p-1 rounded-xl">
                                         <button
-                                            onClick={() => setSummaryTab('month')}
-                                            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${summaryTab === 'month' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                        >
-                                            月間 ({month + 1}月)
-                                        </button>
-                                        <button
                                             onClick={() => setSummaryTab('year')}
                                             className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${summaryTab === 'year' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                         >
-                                            年間 ({year}年)
+                                            年間
                                         </button>
+                                        <button
+                                            onClick={() => setSummaryTab('month')}
+                                            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${summaryTab === 'month' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            月間
+                                        </button>
+                                    </div>
+
+                                    {/* Period Selector */}
+                                    <div className="mt-3 flex items-center gap-2">
+                                        <div className="relative flex-1">
+                                            <select
+                                                value={reportYear}
+                                                onChange={(e) => setReportYear(parseInt(e.target.value, 10))}
+                                                className="w-full py-2 px-3 border-0 rounded-xl bg-slate-50 text-slate-700 font-bold text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all shadow-inner appearance-none text-center"
+                                            >
+                                                {Array.from({ length: 16 }, (_, i) => 2025 + i).map(y => (
+                                                    <option key={y} value={y}>{y}年</option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                                        </div>
+                                        {summaryTab === 'month' && (
+                                            <div className="relative flex-1">
+                                                <select
+                                                    value={reportMonth}
+                                                    onChange={(e) => setReportMonth(parseInt(e.target.value, 10))}
+                                                    className="w-full py-2 px-3 border-0 rounded-xl bg-slate-50 text-slate-700 font-bold text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all shadow-inner appearance-none text-center"
+                                                >
+                                                    {Array.from({ length: 12 }, (_, i) => i).map(m => (
+                                                        <option key={m} value={m}>{m + 1}月</option>
+                                                    ))}
+                                                </select>
+                                                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -4564,7 +4594,7 @@
 
                                     {summaryTab === 'year' && (
                                         <div className="p-4 text-xs text-slate-400 text-center border-t border-slate-100">
-                                            ※ {year}年1月1日 〜 {year}年12月31日 の累計データ
+                                            ※ {reportYear}年1月1日 〜 {reportYear}年12月31日 の累計データ
                                         </div>
                                     )}
                                 </div>
