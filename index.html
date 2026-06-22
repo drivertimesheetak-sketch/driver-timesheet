@@ -88,7 +88,7 @@
             MapPin, Train, LayoutList, LayoutGrid, HardHat, Settings, Palmtree,
             Smile, Sparkles, Loader2, Bot, Truck, Plus, Minus, ChevronDown,
             ChevronUp, Palette, Stethoscope, Receipt, AlertCircle, Coins, Download, Upload,
-            Maximize, Minimize, Info, Lock, Delete, RotateCcw
+            Maximize, Minimize, Info, Lock, Delete, RotateCcw, GripVertical
         } from 'lucide-react';
 
         // アニメーション用のスタイルを追加
@@ -671,6 +671,10 @@
             const [templates, setTemplates] = useState([]);
             const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
             const [templateName, setTemplateName] = useState('');
+            const [templateToDelete, setTemplateToDelete] = useState(null);
+            const longPressTemplateTimerRef = useRef(null);
+            const dragTplRef = useRef({ draggingId: null, overId: null });
+            const [dragTplVisual, setDragTplVisual] = useState({ draggingId: null, overId: null });
 
             // ④ 連続日入力モード
             const [isBulkMode, setIsBulkMode] = useState(false);
@@ -690,6 +694,8 @@
             const [pinLongPressTimer, setPinLongPressTimer] = useState(null);
             const [pinDeleteTargetId, setPinDeleteTargetId] = useState(null);
             const [isPinDropdownOpen, setIsPinDropdownOpen] = useState(false);
+            const dragPinRef = useRef({ draggingId: null, overId: null });
+            const [dragPinVisual, setDragPinVisual] = useState({ draggingId: null, overId: null });
 
             // 車両マスタ編集用のState
             const [addingVehicleCategory, setAddingVehicleCategory] = useState(null);
@@ -1365,18 +1371,54 @@
                 setTemplates(prev => prev.filter(t => t.id !== id));
             };
 
-            // ② テンプレート並び替え
-            const moveTemplate = (id, direction) => {
-                setTemplates(prev => {
-                    const idx = prev.findIndex(t => t.id === id);
-                    if (idx === -1) return prev;
-                    const newIdx = idx + direction;
-                    if (newIdx < 0 || newIdx >= prev.length) return prev;
-                    const next = [...prev];
-                    [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
-                    return next;
-                });
+            // ② テンプレート ドラッグ＆ドロップ並び替え
+            const startTplDrag = (id) => {
+                dragTplRef.current = { draggingId: id, overId: null };
+                setDragTplVisual({ draggingId: id, overId: null });
             };
+            const updateTplDragOver = (id) => {
+                if (dragTplRef.current.overId !== id) {
+                    dragTplRef.current.overId = id;
+                    setDragTplVisual({ draggingId: dragTplRef.current.draggingId, overId: id });
+                }
+            };
+            const endTplDrag = () => {
+                const { draggingId, overId } = dragTplRef.current;
+                if (draggingId && overId && draggingId !== overId) {
+                    setTemplates(prev => {
+                        const fromIdx = prev.findIndex(t => t.id === draggingId);
+                        const toIdx = prev.findIndex(t => t.id === overId);
+                        if (fromIdx === -1 || toIdx === -1) return prev;
+                        const next = [...prev];
+                        const [moved] = next.splice(fromIdx, 1);
+                        next.splice(toIdx, 0, moved);
+                        return next;
+                    });
+                }
+                dragTplRef.current = { draggingId: null, overId: null };
+                setDragTplVisual({ draggingId: null, overId: null });
+            };
+            const findTplFromPoint = (x, y) => {
+                const elem = document.elementFromPoint(x, y);
+                const tplElem = elem?.closest('[data-tpl-id]');
+                if (tplElem) return Number(tplElem.dataset.tplId);
+                return null;
+            };
+
+            useEffect(() => {
+                if (!dragTplVisual.draggingId) return;
+                const onMove = (e) => {
+                    const id = findTplFromPoint(e.clientX, e.clientY);
+                    if (id !== null) updateTplDragOver(id);
+                };
+                const onUp = () => endTplDrag();
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+                return () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                };
+            }, [dragTplVisual.draggingId]);
 
             // ④ 連続日入力モード
             const toggleBulkDateSelect = (dateKey) => {
@@ -1485,18 +1527,54 @@
                 setPinDeleteTargetId(null);
                 showToast('ピン留めを削除しました');
             };
-            // ⑩ 交通費ピン留め並び替え
-            const movePinnedTransport = (id, direction) => {
-                setPinnedTransports(prev => {
-                    const idx = prev.findIndex(p => p.id === id);
-                    if (idx === -1) return prev;
-                    const newIdx = idx + direction;
-                    if (newIdx < 0 || newIdx >= prev.length) return prev;
-                    const next = [...prev];
-                    [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
-                    return next;
-                });
+            // ⑩ 交通費ピン留め ドラッグ＆ドロップ並び替え
+            const startPinDrag = (id) => {
+                dragPinRef.current = { draggingId: id, overId: null };
+                setDragPinVisual({ draggingId: id, overId: null });
             };
+            const updatePinDragOver = (id) => {
+                if (dragPinRef.current.overId !== id) {
+                    dragPinRef.current.overId = id;
+                    setDragPinVisual({ draggingId: dragPinRef.current.draggingId, overId: id });
+                }
+            };
+            const endPinDrag = () => {
+                const { draggingId, overId } = dragPinRef.current;
+                if (draggingId && overId && draggingId !== overId) {
+                    setPinnedTransports(prev => {
+                        const fromIdx = prev.findIndex(p => p.id === draggingId);
+                        const toIdx = prev.findIndex(p => p.id === overId);
+                        if (fromIdx === -1 || toIdx === -1) return prev;
+                        const next = [...prev];
+                        const [moved] = next.splice(fromIdx, 1);
+                        next.splice(toIdx, 0, moved);
+                        return next;
+                    });
+                }
+                dragPinRef.current = { draggingId: null, overId: null };
+                setDragPinVisual({ draggingId: null, overId: null });
+            };
+            const findPinFromPoint = (x, y) => {
+                const elem = document.elementFromPoint(x, y);
+                const pinElem = elem?.closest('[data-pin-id]');
+                if (pinElem) return Number(pinElem.dataset.pinId);
+                return null;
+            };
+
+            useEffect(() => {
+                if (!dragPinVisual.draggingId) return;
+                const onMove = (e) => {
+                    const id = findPinFromPoint(e.clientX, e.clientY);
+                    if (id !== null) updatePinDragOver(id);
+                };
+                const onUp = () => endPinDrag();
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+                return () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                };
+            }, [dragPinVisual.draggingId]);
 
             // ... (Export/Import/Vehicle logic unchanged) ...
             // CSVエクスポート機能
@@ -2959,30 +3037,67 @@
                                             {isTemplateAreaOpen && (
                                                 <div className="flex flex-wrap gap-2 mt-2">
                                                     {templates.map((tpl, idx) => (
-                                                        <div key={tpl.id} className="flex items-center gap-1">
-                                                            <div className="flex flex-col">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => moveTemplate(tpl.id, -1)}
-                                                                    disabled={idx === 0}
-                                                                    className={`px-0.5 leading-none text-[9px] ${idx === 0 ? 'text-slate-200' : 'text-indigo-400 hover:text-indigo-600'}`}
-                                                                >▲</button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => moveTemplate(tpl.id, 1)}
-                                                                    disabled={idx === templates.length - 1}
-                                                                    className={`px-0.5 leading-none text-[9px] ${idx === templates.length - 1 ? 'text-slate-200' : 'text-indigo-400 hover:text-indigo-600'}`}
-                                                                >▼</button>
-                                                            </div>
-                                                            <button
-                                                                onClick={() => applyTemplate(tpl)}
-                                                                className="text-xs font-bold bg-white text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl hover:bg-indigo-100 transition-colors shadow-sm"
+                                                        <div key={tpl.id} data-tpl-id={tpl.id}
+                                                            className={`flex items-center gap-0.5 rounded-xl transition-all duration-150 ${
+                                                                dragTplVisual.draggingId === tpl.id ? 'opacity-40 scale-95' : ''
+                                                            } ${
+                                                                dragTplVisual.overId === tpl.id && dragTplVisual.draggingId !== tpl.id ? 'ring-2 ring-indigo-400 bg-indigo-50/50' : ''
+                                                            }`}
+                                                        >
+                                                            <div
+                                                                className="touch-none cursor-grab active:cursor-grabbing p-1.5 text-indigo-300 hover:text-indigo-500 transition-colors"
+                                                                onTouchStart={(e) => { e.preventDefault(); startTplDrag(tpl.id); }}
+                                                                onTouchMove={(e) => {
+                                                                    const touch = e.touches[0];
+                                                                    const id = findTplFromPoint(touch.clientX, touch.clientY);
+                                                                    if (id !== null) updateTplDragOver(id);
+                                                                }}
+                                                                onTouchEnd={endTplDrag}
+                                                                onMouseDown={(e) => { e.preventDefault(); startTplDrag(tpl.id); }}
                                                             >
-                                                                {tpl.name}
-                                                            </button>
-                                                            <button onClick={() => deleteTemplate(tpl.id)} className="text-slate-300 hover:text-red-400 transition-colors">
-                                                                <X size={12} />
-                                                            </button>
+                                                                <GripVertical size={16} />
+                                                            </div>
+                                                            <div className="relative">
+                                                                <button
+                                                                    onClick={() => { if (templateToDelete !== tpl.id) applyTemplate(tpl); }}
+                                                                    onTouchStart={() => {
+                                                                        longPressTemplateTimerRef.current = setTimeout(() => {
+                                                                            setTemplateToDelete(tpl.id);
+                                                                        }, 600);
+                                                                    }}
+                                                                    onTouchEnd={() => clearTimeout(longPressTemplateTimerRef.current)}
+                                                                    onTouchMove={() => clearTimeout(longPressTemplateTimerRef.current)}
+                                                                    onMouseDown={() => {
+                                                                        longPressTemplateTimerRef.current = setTimeout(() => {
+                                                                            setTemplateToDelete(tpl.id);
+                                                                        }, 600);
+                                                                    }}
+                                                                    onMouseUp={() => clearTimeout(longPressTemplateTimerRef.current)}
+                                                                    onMouseLeave={() => clearTimeout(longPressTemplateTimerRef.current)}
+                                                                    className={`text-xs font-bold border px-3 py-1.5 rounded-xl transition-colors shadow-sm ${
+                                                                        templateToDelete === tpl.id
+                                                                            ? 'bg-red-50 text-red-600 border-red-300 ring-2 ring-red-200'
+                                                                            : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                                                                    }`}
+                                                                >
+                                                                    {tpl.name}
+                                                                </button>
+                                                                {templateToDelete === tpl.id && (
+                                                                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-10 bg-white rounded-xl shadow-lg border border-red-200 p-2.5 whitespace-nowrap animate-in fade-in slide-in-from-top-1 duration-150">
+                                                                        <p className="text-[10px] font-bold text-red-600 mb-1.5 text-center">削除しますか？</p>
+                                                                        <div className="flex gap-1.5">
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); setTemplateToDelete(null); }}
+                                                                                className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                                                                            >キャンセル</button>
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); deleteTemplate(tpl.id); setTemplateToDelete(null); }}
+                                                                                className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 shadow-sm transition-colors"
+                                                                            >削除</button>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -3345,20 +3460,25 @@
                                                                         const displayCost = p.isRT ? p.onewayCost * 2 : p.onewayCost;
                                                                         const isDelTarget = pinDeleteTargetId === p.id;
                                                                         return (
-                                                                            <div key={p.id} className="flex gap-2 items-center">
-                                                                                <div className="flex flex-col shrink-0">
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={() => movePinnedTransport(p.id, -1)}
-                                                                                        disabled={pIdx === 0}
-                                                                                        className={`px-0.5 leading-none text-[9px] ${pIdx === 0 ? 'text-slate-200' : 'text-amber-400 hover:text-amber-600'}`}
-                                                                                    >▲</button>
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={() => movePinnedTransport(p.id, 1)}
-                                                                                        disabled={pIdx === pinnedTransports.length - 1}
-                                                                                        className={`px-0.5 leading-none text-[9px] ${pIdx === pinnedTransports.length - 1 ? 'text-slate-200' : 'text-amber-400 hover:text-amber-600'}`}
-                                                                                    >▼</button>
+                                                                            <div key={p.id} data-pin-id={p.id}
+                                                                                className={`flex gap-1.5 items-center rounded-xl transition-all duration-150 ${
+                                                                                    dragPinVisual.draggingId === p.id ? 'opacity-40 scale-95' : ''
+                                                                                } ${
+                                                                                    dragPinVisual.overId === p.id && dragPinVisual.draggingId !== p.id ? 'ring-2 ring-amber-400 bg-amber-50/50' : ''
+                                                                                }`}
+                                                                            >
+                                                                                <div
+                                                                                    className="touch-none cursor-grab active:cursor-grabbing p-1.5 text-amber-300 hover:text-amber-500 transition-colors shrink-0"
+                                                                                    onTouchStart={(e) => { e.preventDefault(); startPinDrag(p.id); }}
+                                                                                    onTouchMove={(e) => {
+                                                                                        const touch = e.touches[0];
+                                                                                        const id = findPinFromPoint(touch.clientX, touch.clientY);
+                                                                                        if (id !== null) updatePinDragOver(id);
+                                                                                    }}
+                                                                                    onTouchEnd={endPinDrag}
+                                                                                    onMouseDown={(e) => { e.preventDefault(); startPinDrag(p.id); }}
+                                                                                >
+                                                                                    <GripVertical size={14} />
                                                                                 </div>
                                                                                 <button
                                                                                     type="button"
