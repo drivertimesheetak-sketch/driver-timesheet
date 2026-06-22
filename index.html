@@ -1,5 +1,6 @@
 
 
+
 <!DOCTYPE html>
 <html lang="ja">
 
@@ -679,6 +680,9 @@
 
             // ⑦ 今日のバナー
             const [isTodayBannerDismissed, setIsTodayBannerDismissed] = useState(false);
+            // ▼ バックアップ催促機能
+            const [lastBackupDate, setLastBackupDate] = useState(null);
+            const [isBackupBannerDismissed, setIsBackupBannerDismissed] = useState(false);
 
             // ⑩ 交通費ピン留め（手動登録・無制限・localStorageで永続化）
             const [pinnedTransports, setPinnedTransports] = useState([]);
@@ -934,6 +938,11 @@
                         if (savedPinned) {
                             setPinnedTransports(JSON.parse(savedPinned));
                         }
+
+                        const savedBackupDate = localStorage.getItem('workTrackerLastBackupDate');
+                        if (savedBackupDate) {
+                            setLastBackupDate(savedBackupDate);
+                        }
                     } catch (error) {
                         console.error("Failed to load data from localStorage", error);
                         showToast("データの読み込みに失敗しました", "error");
@@ -1025,6 +1034,14 @@
             // --- 日付操作 ---
             const year = currentDate.getFullYear();
             const month = currentDate.getMonth();
+
+            // 最終バックアップからの経過日数（14日以上 or 未実施なら催促）
+            const daysSinceBackup = useMemo(() => {
+                if (!lastBackupDate) return null;
+                const diffMs = Date.now() - new Date(lastBackupDate).getTime();
+                return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            }, [lastBackupDate]);
+            const shouldShowBackupReminder = !isBackupBannerDismissed && (daysSinceBackup === null || daysSinceBackup >= 14) && Object.keys(workData).length > 0;
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             const firstDayOfMonth = new Date(year, month, 1).getDay();
 
@@ -1561,6 +1578,11 @@
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+
+                // バックアップ実施日時を記録（バックアップ催促バナー用）
+                const nowIso = new Date().toISOString();
+                localStorage.setItem('workTrackerLastBackupDate', nowIso);
+                setLastBackupDate(nowIso);
             };
 
             // CSVインポート機能
@@ -2779,6 +2801,28 @@
                             </div>
                         );
                     })()}
+
+                    {/* ⑧ バックアップ催促バナー（データ消失リスク対策） */}
+                    {shouldShowBackupReminder && (
+                        <div className="mx-3 mt-2 mb-1 px-3 py-2 rounded-xl flex items-center justify-between gap-2 bg-orange-50 border border-orange-200 text-orange-800 text-xs font-bold shadow-sm">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <Download size={14} className="flex-shrink-0" />
+                                <span className="truncate">
+                                    {daysSinceBackup === null
+                                        ? 'まだCSVバックアップを取得していません。機種変更やキャッシュ消去でデータが消える前に保存しましょう'
+                                        : `最終バックアップから${daysSinceBackup}日経過しています。CSVで保存しましょう`}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                                <button onClick={handleExportCSV} className="bg-orange-600 text-white px-2.5 py-1 rounded-lg font-bold text-xs shadow-sm">
+                                    今すぐ保存
+                                </button>
+                                <button onClick={() => setIsBackupBannerDismissed(true)} className="text-orange-400 hover:text-orange-600 ml-1">
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* ④ 連続日入力モードのツールバー */}
                     {isBulkMode && (
