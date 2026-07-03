@@ -2,6 +2,7 @@
 
 
 
+
 <!DOCTYPE html>
 <html lang="ja">
 
@@ -88,7 +89,7 @@
             MapPin, Train, LayoutList, LayoutGrid, HardHat, Settings, Palmtree,
             Smile, Sparkles, Loader2, Bot, Truck, Plus, Minus, ChevronDown,
             ChevronUp, Palette, Stethoscope, Receipt, AlertCircle, Coins, Download, Upload,
-            Maximize, Minimize, Info, Lock, Delete, RotateCcw, GripVertical
+            Maximize, Minimize, Info, Lock, Delete, RotateCcw, GripVertical, Navigation
         } from 'lucide-react';
 
         // アニメーション用のスタイルを追加
@@ -691,6 +692,7 @@
 
             // ⑩ 交通費ピン留め（手動登録・無制限・localStorageで永続化）
             const [pinnedTransports, setPinnedTransports] = useState([]);
+            const [visitLoadingIndex, setVisitLoadingIndex] = useState(null);
             const [pinLongPressTimer, setPinLongPressTimer] = useState(null);
             const [pinDeleteTargetId, setPinDeleteTargetId] = useState(null);
             const [isPinDropdownOpen, setIsPinDropdownOpen] = useState(false);
@@ -750,6 +752,7 @@
                 holidayWorkType: null,
                 transportations: Array.from({ length: 10 }, () => ({ name: '', cost: '' })),
                 expenses: Array.from({ length: 10 }, () => ({ name: '', cost: '' })),
+                visits: Array.from({ length: 10 }, () => ({ name: '', url: '' })),
                 vehicles: Array.from({ length: 5 }, () => ''),
                 mileages: Array.from({ length: 5 }, () => ''),
                 isDeemed: false, // 追加: みなしフラグ
@@ -1118,6 +1121,7 @@
 
                 const defaultTransportations = Array.from({ length: 10 }, () => ({ name: '', cost: '', mode: settings.monguchiMode ? '全行程' : '交通機関' }));
                 const defaultExpenses = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
+                const defaultVisits = Array.from({ length: 10 }, () => ({ name: '', url: '' }));
                 const defaultVehicles = Array.from({ length: 10 }, () => '');
                 const defaultMileages = Array.from({ length: 5 }, () => '');
 
@@ -1142,6 +1146,9 @@
                         expenses: workData[dateKey].expenses
                             ? [...workData[dateKey].expenses, ...Array(10).fill({ name: '', cost: '' })].slice(0, 10)
                             : defaultExpenses,
+                        visits: workData[dateKey].visits
+                            ? [...workData[dateKey].visits, ...Array(10).fill({ name: '', url: '' })].slice(0, 10)
+                            : defaultVisits,
                         vehicles: workData[dateKey].vehicles ? [...workData[dateKey].vehicles, ...Array(10).fill('')].slice(0, 10) : defaultVehicles,
                         mileages: workData[dateKey].mileages ? [...workData[dateKey].mileages, ...Array(5).fill('')].slice(0, 5) : defaultMileages,
                     });
@@ -1163,6 +1170,7 @@
                         holidayWorkType: null,
                         transportations: defaultTransportations,
                         expenses: defaultExpenses,
+                        visits: defaultVisits,
                         vehicles: defaultVehicles,
                         mileages: defaultMileages,
                     });
@@ -1190,6 +1198,7 @@
 
                 const defaultTransportations = Array.from({ length: 10 }, () => ({ name: '', cost: '', mode: settings.monguchiMode ? '全行程' : '交通機関' }));
                 const defaultExpenses = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
+                const defaultVisits = Array.from({ length: 10 }, () => ({ name: '', url: '' }));
                 const defaultVehicles = Array.from({ length: 10 }, () => '');
                 const defaultMileages = Array.from({ length: 5 }, () => '');
 
@@ -1219,6 +1228,7 @@
                                 isHolidayWork: false, holidayWorkType: null,
                                 transportations: defaultTransportations,
                                 expenses: defaultExpenses,
+                                visits: defaultVisits,
                                 vehicles: defaultVehicles,
                                 mileages: defaultMileages,
                             };
@@ -1241,6 +1251,7 @@
                                 isHolidayWork: true, holidayWorkType: '8post_night',
                                 transportations: defaultTransportations,
                                 expenses: defaultExpenses,
+                                visits: defaultVisits,
                                 vehicles: defaultVehicles,
                                 mileages: defaultMileages,
                             };
@@ -1355,12 +1366,14 @@
             const applyTemplate = (template) => {
                 const defaultTransportations = Array.from({ length: 10 }, () => ({ name: '', cost: '', mode: settings.monguchiMode ? '全行程' : '交通機関' }));
                 const defaultExpenses = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
+                const defaultVisits = Array.from({ length: 10 }, () => ({ name: '', url: '' }));
                 const defaultVehicles = Array.from({ length: 10 }, () => '');
                 const defaultMileages = Array.from({ length: 5 }, () => '');
                 setTempEntry({
                     ...template.entry,
                     transportations: template.entry.transportations || defaultTransportations,
                     expenses: template.entry.expenses || defaultExpenses,
+                    visits: template.entry.visits || defaultVisits,
                     vehicles: template.entry.vehicles || defaultVehicles,
                     mileages: template.entry.mileages || defaultMileages,
                 });
@@ -1433,6 +1446,7 @@
                 if (bulkSelectedDates.length === 0) return;
                 const defaultTransportations = Array.from({ length: 10 }, () => ({ name: '', cost: '', mode: settings.monguchiMode ? '全行程' : '交通機関' }));
                 const defaultExpenses = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
+                const defaultVisits = Array.from({ length: 10 }, () => ({ name: '', url: '' }));
                 setTempEntry({
                     startTime: '09:00', endTime: '18:00',
                     type: null, workPatternId: 'standard', note: '',
@@ -1441,6 +1455,7 @@
                     isHolidayWork: false, holidayWorkType: null,
                     transportations: defaultTransportations,
                     expenses: defaultExpenses,
+                    visits: defaultVisits,
                     vehicles: Array.from({ length: 10 }, () => ''),
                     mileages: Array.from({ length: 5 }, () => ''),
                 });
@@ -1509,6 +1524,43 @@
                 const newPin = { id: Date.now(), from, to, mode, onewayCost, isRT };
                 setPinnedTransports(prev => [...prev, newPin]);
                 showToast('📌 ピン留めに登録しました');
+            };
+
+            // 🗺️ 訪問先：現在地登録（GPS）
+            const registerVisitLocation = (index) => {
+                const name = (tempEntry.visits[index]?.name || '').trim();
+                if (!name) {
+                    showToast('訪問先の名前を入力してください', 'error');
+                    return;
+                }
+                if (!navigator.geolocation) {
+                    showToast('この端末では位置情報が利用できません', 'error');
+                    return;
+                }
+                setVisitLoadingIndex(index);
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        const { latitude, longitude } = pos.coords;
+                        const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+                        const newVisits = [...tempEntry.visits];
+                        newVisits[index] = { ...newVisits[index], name, url };
+                        setTempEntry(prev => ({ ...prev, visits: newVisits }));
+                        setVisitLoadingIndex(null);
+                        showToast('📍 訪問先を登録しました');
+                    },
+                    (err) => {
+                        setVisitLoadingIndex(null);
+                        showToast('位置情報を取得できませんでした', 'error');
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            };
+
+            // 🗺️ 訪問先：削除（登録解除）
+            const deleteVisitLocation = (index) => {
+                const newVisits = [...tempEntry.visits];
+                newVisits[index] = { name: '', url: '' };
+                setTempEntry(prev => ({ ...prev, visits: newVisits }));
             };
 
             // ⑩ 交通費ピン留め長押し削除
@@ -1607,7 +1659,18 @@
                     '立替費7内容', '立替費7金額',
                     '立替費8内容', '立替費8金額',
                     '立替費9内容', '立替費9金額',
-                    '立替費10内容', '立替費10金額'
+                    '立替費10内容', '立替費10金額',
+                    // 訪問先詳細 (10件分)
+                    '訪問先1名前', '訪問先1URL',
+                    '訪問先2名前', '訪問先2URL',
+                    '訪問先3名前', '訪問先3URL',
+                    '訪問先4名前', '訪問先4URL',
+                    '訪問先5名前', '訪問先5URL',
+                    '訪問先6名前', '訪問先6URL',
+                    '訪問先7名前', '訪問先7URL',
+                    '訪問先8名前', '訪問先8URL',
+                    '訪問先9名前', '訪問先9URL',
+                    '訪問先10名前', '訪問先10URL'
                 ];
 
                 // データ行の作成
@@ -1642,6 +1705,12 @@
 
                     const transports = fillArray(entry.transportations, 10);
                     const expenses = fillArray(entry.expenses, 10);
+                    const fillVisits = (arr, length) => {
+                        const res = arr ? [...arr] : [];
+                        while (res.length < length) res.push({ name: '', url: '' });
+                        return res.slice(0, length);
+                    };
+                    const visits = fillVisits(entry.visits, 10);
 
                     return [
                         dateKey,
@@ -1668,7 +1737,9 @@
                         // 交通費詳細展開
                         ...transports.flatMap(t => [escape(t.name), escape(t.cost)]),
                         // 立替費詳細展開
-                        ...expenses.flatMap(e => [escape(e.name), escape(e.cost)])
+                        ...expenses.flatMap(e => [escape(e.name), escape(e.cost)]),
+                        // 訪問先詳細展開
+                        ...visits.flatMap(v => [escape(v.name), escape(v.url)])
                     ].join(',');
                 });
 
@@ -1791,6 +1862,7 @@
 
                             let transportations = Array.from({ length: 10 }, () => ({ name: '', cost: '', from: '', to: '', mode: settings.monguchiMode ? '全行程' : '交通機関' }));
                             let expenses = Array.from({ length: 10 }, () => ({ name: '', cost: '' }));
+                            let visits = Array.from({ length: 10 }, () => ({ name: '', url: '' }));
 
                             const tStart = 16 + vOffset;
                             if (cols.length >= tStart + 10) {
@@ -1822,6 +1894,17 @@
                                         cost: cols[eStart + 1 + j * 2] || ''
                                     };
                                 }
+
+                                // 訪問先復元（旧フォーマットのCSVには存在しないため、あれば読み込む）
+                                const visitStart = eStart + (rowsToRead * 2);
+                                if (cols.length >= visitStart + rowsToRead * 2) {
+                                    for (let j = 0; j < rowsToRead; j++) {
+                                        visits[j] = {
+                                            name: cols[visitStart + j * 2] || '',
+                                            url: cols[visitStart + 1 + j * 2] || ''
+                                        };
+                                    }
+                                }
                             }
 
                             newWorkData[dateKey] = {
@@ -1842,6 +1925,7 @@
                                 vehicles: [vehicle1, vehicle2, vehicle3, vehicle4, vehicle5].map(v => v || ''),
                                 transportations,
                                 expenses,
+                                visits,
                             };
 
                             importCount++;
@@ -2451,8 +2535,8 @@
                                     </span>
                                 ) : (
                                     <>
-                                        {/* ③ 未入力バッジ：過去日かつデータなし（休日以外）のとき */}
-                                        {!entry && dateObj < new Date(new Date().setHours(0,0,0,0)) && dayOfWeek !== 0 && !isHoliday && !isCompanyHoliday && (
+                                        {/* ③ 未入力バッジ：過去日かつデータなしのとき（日曜・祝日も含め毎日対象） */}
+                                        {!entry && dateObj < new Date(new Date().setHours(0,0,0,0)) && (
                                             <span className="text-[9px] font-bold text-red-500 bg-red-50 border border-red-200 rounded-full w-4 h-4 flex items-center justify-center shrink-0 leading-none">!</span>
                                         )}
                                         {isHoliday && (
@@ -2614,6 +2698,7 @@
                             const totalTransportCost = validTransports.reduce((sum, t) => sum + (parseInt(t.cost, 10) || 0), 0);
                             const totalExpenseCost = validExpenses.reduce((sum, e) => sum + (parseInt(e.cost, 10) || 0), 0);
                             const validVehicles = entry?.vehicles?.filter(Boolean) || [];
+                            const validVisits = entry?.visits?.filter(v => v.name && v.url) || [];
                             const validMileages = entry?.mileages?.filter(m => m !== '' && m !== null && m !== undefined && !isNaN(parseFloat(m))) || [];
                             const totalDailyMileage = validMileages.reduce((sum, m) => sum + parseFloat(m), 0);
 
@@ -2645,8 +2730,8 @@
                                             {d}
                                         </span>
                                         {isHoliday && <div className="text-[10px] text-rose-500 font-bold text-center leading-tight break-words w-full bg-rose-50 rounded px-1 py-0.5">{holidayName}</div>}
-                                        {/* ③ 未入力バッジ */}
-                                        {!entry && dateObj < new Date(new Date().setHours(0,0,0,0)) && dayOfWeek !== 0 && !isHoliday && !isCompanyHoliday && (
+                                        {/* ③ 未入力バッジ（日曜・祝日も含め毎日対象） */}
+                                        {!entry && dateObj < new Date(new Date().setHours(0,0,0,0)) && (
                                             <span className="text-[9px] font-bold text-red-500 bg-red-50 border border-red-200 rounded-full px-1.5 py-0.5 whitespace-nowrap">未入力</span>
                                         )}
                                     </div>
@@ -2756,6 +2841,29 @@
                                                                     <span className="font-medium">{e.name}</span>
                                                                     <span className="font-mono text-slate-800">¥{Number(e.cost).toLocaleString()}</span>
                                                                 </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {validVisits.length > 0 && (
+                                                    <div className="mt-1 bg-emerald-50/50 rounded-xl p-3 border border-emerald-100/50">
+                                                        <div className="flex items-center gap-1 text-xs font-bold text-emerald-800 mb-2 border-b border-emerald-200/50 pb-1">
+                                                            <MapPin size={12} /> 訪問先
+                                                        </div>
+                                                        <div className="flex flex-col gap-1.5">
+                                                            {validVisits.map((v, i) => (
+                                                                <a
+                                                                    key={i}
+                                                                    href={v.url}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    className="flex items-center gap-1.5 text-xs text-emerald-700 font-bold pl-1 hover:underline active:opacity-70 transition-opacity"
+                                                                >
+                                                                    <MapPin size={12} className="shrink-0 text-emerald-500" />
+                                                                    <span className="truncate">{v.name}</span>
+                                                                </a>
                                                             ))}
                                                         </div>
                                                     </div>
@@ -3881,6 +3989,84 @@
                                                                         }}
                                                                         className="relative z-20 cursor-text flex-1 w-full min-w-0 p-3 text-sm bg-[#D1FEFF]/20 border border-transparent ring-2 ring-cyan-200/50 rounded-xl focus:ring-2 focus:ring-cyan-500/30 outline-none text-center shadow-sm placeholder:text-slate-300"
                                                                     />
+                                                                </div>
+                                                            ));
+                                                        })()}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* 🗺️ 訪問先（GPS登録） */}
+                                            <div className="bg-emerald-50/50 rounded-2xl border border-emerald-100 shadow-sm overflow-hidden transition-all duration-300">
+                                                <div className="p-3 flex justify-between items-center bg-emerald-50/50 border-b border-emerald-100/50">
+                                                    <div className="text-xs font-bold text-emerald-800 flex items-center gap-1 uppercase tracking-wider">
+                                                        <MapPin size={14} /> 訪問先
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-emerald-800">
+                                                        <span className="text-xs font-bold">
+                                                            {tempEntry.visits.filter(v => v.url).length}/10件
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="p-3">
+                                                    <div className="space-y-2">
+                                                        {(() => {
+                                                            let firstEmptyIndex = tempEntry.visits.findIndex(v => !v.name && !v.url);
+                                                            if (firstEmptyIndex === -1) firstEmptyIndex = 10;
+                                                            const visibleLimit = Math.min(firstEmptyIndex + 1, 10);
+
+                                                            return tempEntry.visits.slice(0, visibleLimit).map((visit, index) => (
+                                                                <div key={index} className="flex gap-2 items-center">
+                                                                    {visit.url ? (
+                                                                        <>
+                                                                            <a
+                                                                                href={visit.url}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                                className="flex-1 flex items-center gap-1.5 p-3 text-sm bg-white border border-transparent ring-1 ring-emerald-200/50 rounded-xl shadow-sm text-emerald-700 font-bold hover:bg-emerald-50 active:scale-[0.98] transition-all truncate"
+                                                                            >
+                                                                                <MapPin size={14} className="shrink-0 text-emerald-500" />
+                                                                                <span className="truncate">{visit.name}</span>
+                                                                            </a>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => { e.stopPropagation(); deleteVisitLocation(index); }}
+                                                                                className="p-3 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-200 bg-white shrink-0 transition-colors"
+                                                                                title="登録を解除"
+                                                                            >
+                                                                                <X size={14} />
+                                                                            </button>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <input
+                                                                                type="text"
+                                                                                autoComplete="off"
+                                                                                placeholder="訪問先の名前"
+                                                                                value={visit.name}
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                                onChange={(e) => {
+                                                                                    const newVisits = [...tempEntry.visits];
+                                                                                    newVisits[index] = { ...newVisits[index], name: e.target.value };
+                                                                                    setTempEntry({ ...tempEntry, visits: newVisits });
+                                                                                }}
+                                                                                className="flex-1 w-full min-w-0 p-3 text-sm bg-white border border-transparent ring-1 ring-emerald-200/50 rounded-xl focus:ring-2 focus:ring-emerald-500/30 outline-none shadow-sm placeholder:text-slate-300"
+                                                                            />
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => { e.stopPropagation(); registerVisitLocation(index); }}
+                                                                                disabled={visitLoadingIndex === index}
+                                                                                className="px-3 py-3 rounded-xl text-xs font-bold transition-all border shadow-sm whitespace-nowrap bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 active:scale-95 disabled:opacity-60 flex items-center gap-1 shrink-0"
+                                                                            >
+                                                                                {visitLoadingIndex === index
+                                                                                    ? <Loader2 size={14} className="animate-spin" />
+                                                                                    : <Navigation size={14} />}
+                                                                                登録
+                                                                            </button>
+                                                                        </>
+                                                                    )}
                                                                 </div>
                                                             ));
                                                         })()}
