@@ -1,439 +1,994 @@
-
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>日報サポート - 走行記録</title>
-<style>
-  :root{
-    --bg:#12151a;
-    --bg-elev:#1b1f27;
-    --bg-elev2:#232833;
-    --border:#2b313d;
-    --text:#eef1f5;
-    --text-dim:#8d97a5;
-    --amber:#f2a93b;
-    --amber-dim:#7a5a26;
-    --teal:#49d3c8;
-    --teal-dim:#1f5c56;
-    --danger:#e2574c;
-    --danger-dim:#7a2e29;
-  }
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
-  body{
-    background:radial-gradient(circle at 50% -10%, #1c212b 0%, var(--bg) 60%);
-    color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
-    min-height:100vh;
-    padding:16px 14px calc(env(safe-area-inset-bottom) + 24px);
-    -webkit-tap-highlight-color:transparent;
-  }
-  .mono{font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>日報サポート - 走行記録</title>
+  <style>
+    :root {
+      --bg: #12151a;
+      --bg-elev: #1b1f27;
+      --bg-elev2: #232833;
+      --border: #2b313d;
+      --text: #eef1f5;
+      --text-dim: #8d97a5;
+      --amber: #f2a93b;
+      --amber-dim: #7a5a26;
+      --teal: #49d3c8;
+      --teal-dim: #1f5c56;
+      --danger: #e2574c;
+      --danger-dim: #7a2e29;
+    }
 
-  header{
-    display:flex;justify-content:space-between;align-items:baseline;
-    padding:6px 4px 16px;
-    border-bottom:1px solid var(--border);
-    margin-bottom:16px;
-  }
-  header h1{font-size:16px;font-weight:700;letter-spacing:.04em;margin:0;color:var(--text);}
-  header .date{font-size:13px;color:var(--text-dim);}
+    * {
+      box-sizing: border-box;
+    }
 
-  .gauge-card{
-    background:linear-gradient(180deg,var(--bg-elev) 0%, var(--bg-elev2) 100%);
-    border:1px solid var(--border);
-    border-radius:18px;
-    padding:22px 18px;
-    margin-bottom:16px;
-    position:relative;
-    overflow:hidden;
-  }
-  .gauge-card::before{
-    content:"";
-    position:absolute; inset:0;
-    background:conic-gradient(from 180deg, transparent 0 70%, var(--gauge-color,var(--text-dim)) 70% 100%);
-    opacity:.06;
-    pointer-events:none;
-  }
-  .status-label{
-    display:flex;align-items:center;gap:8px;
-    font-size:13px;color:var(--text-dim);letter-spacing:.06em;
-    margin-bottom:6px;
-  }
-  .status-dot{width:8px;height:8px;border-radius:50%;background:var(--text-dim);flex:none;}
-  .status-dot.moving{background:var(--teal);box-shadow:0 0 10px var(--teal);}
-  .status-dot.waiting{background:var(--amber);box-shadow:0 0 10px var(--amber);}
-  .status-dot.ended{background:var(--danger);}
-  .big-timer{
-    font-size:46px;font-weight:700;letter-spacing:.02em;color:var(--text);
-    line-height:1.05;
-  }
-  .big-timer.moving{color:var(--teal);}
-  .big-timer.waiting{color:var(--amber);}
-  .sub-line{font-size:13px;color:var(--text-dim);margin-top:8px;}
-  .sub-line a{color:var(--teal);text-decoration:none;}
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+    }
 
-  .controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
-  button{
-    font-family:inherit;font-size:15px;font-weight:700;letter-spacing:.02em;
-    border:none;border-radius:14px;padding:18px 10px;
-    cursor:pointer;color:var(--text);
-    transition:transform .08s ease, opacity .15s ease;
-  }
-  button:active{transform:scale(.97);}
-  button:disabled{opacity:.32;cursor:not-allowed;}
-  .btn-start{background:var(--teal);color:#08201d;grid-column:1/3;}
-  .btn-depart{background:var(--bg-elev2);border:1px solid var(--amber-dim);color:var(--amber);}
-  .btn-end{background:var(--bg-elev2);border:1px solid var(--danger-dim);color:var(--danger);}
-  .btn-result{background:var(--bg-elev2);border:1px solid var(--border);color:var(--text);grid-column:1/3;}
-  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text-dim);font-size:12.5px;padding:9px 12px;font-weight:600;border-radius:10px;}
-  .btn-route{background:var(--bg-elev);border:1px solid var(--teal-dim);color:var(--teal);font-size:12.5px;padding:8px 12px;font-weight:600;border-radius:10px;}
+    body {
+      background: radial-gradient(circle at 50% -10%, #1c212b 0%, var(--bg) 60%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+      min-height: 100vh;
+      padding: 16px 14px calc(env(safe-area-inset-bottom) + 24px);
+      -webkit-tap-highlight-color: transparent;
+    }
 
-  .notice{
-    font-size:12.5px;color:var(--text-dim);background:var(--bg-elev);
-    border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:16px;line-height:1.6;
-  }
-  .notice.err{color:var(--danger);border-color:var(--danger-dim);}
+    .mono {
+      font-family: "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+    }
 
-  #resultsSection{display:none;}
-  .summary-row{display:flex;gap:10px;margin-bottom:14px;}
-  .summary-box{
-    flex:1;background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;padding:12px;
-  }
-  .summary-box .label{font-size:11px;color:var(--text-dim);margin-bottom:4px;letter-spacing:.04em;}
-  .summary-box .value{font-size:20px;font-weight:700;}
-  .summary-box.teal .value{color:var(--teal);}
-  .summary-box.amber .value{color:var(--amber);}
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 6px 4px 16px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
 
-  .timeline{display:flex;flex-direction:column;gap:8px;}
-  .leg-card, .wait-card{
-    border-radius:14px;padding:14px;border:1px solid var(--border);
-  }
-  .leg-card{background:linear-gradient(180deg,rgba(73,211,200,.07),rgba(73,211,200,0) 60%);border-color:var(--teal-dim);}
-  .wait-card{background:linear-gradient(180deg,rgba(242,169,59,.06),rgba(242,169,59,0) 60%);border-color:var(--amber-dim);display:flex;justify-content:space-between;align-items:center;}
-  .leg-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
-  .leg-tag{font-size:11px;color:var(--teal);letter-spacing:.06em;font-weight:700;}
-  .leg-dur{font-size:12px;color:var(--text-dim);}
-  .leg-points{display:flex;flex-direction:column;gap:6px;font-size:13.5px;}
-  .point-row{display:flex;justify-content:space-between;gap:8px;}
-  .point-row .t{color:var(--text-dim);width:52px;flex:none;}
-  .point-row a{color:var(--text);text-decoration:none;border-bottom:1px dotted var(--text-dim);}
-  .leg-foot{margin-top:10px;display:flex;justify-content:flex-end;}
-  .wait-tag{font-size:11px;color:var(--amber);letter-spacing:.06em;font-weight:700;margin-bottom:4px;}
-  .wait-time{font-size:12.5px;color:var(--text-dim);}
-  .wait-dur{font-size:15px;font-weight:700;color:var(--amber);}
-  .inprogress{font-size:11px;color:var(--text-dim);border:1px solid var(--border);border-radius:6px;padding:2px 6px;margin-left:6px;}
+    header h1 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      margin: 0;
+      color: var(--text);
+    }
 
-  .result-actions{display:flex;gap:8px;margin:16px 0;flex-wrap:wrap;}
-  .empty-msg{font-size:13px;color:var(--text-dim);text-align:center;padding:24px 0;}
-</style>
+    header .date {
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .gauge-card {
+      background: linear-gradient(180deg, var(--bg-elev) 0%, var(--bg-elev2) 100%);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px 18px;
+      margin-bottom: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .gauge-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: conic-gradient(from 180deg, transparent 0 70%, var(--gauge-color, var(--text-dim)) 70% 100%);
+      opacity: .06;
+      pointer-events: none;
+    }
+
+    .status-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-dim);
+      letter-spacing: .06em;
+      margin-bottom: 6px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      flex: none;
+    }
+
+    .status-dot.moving {
+      background: var(--teal);
+      box-shadow: 0 0 10px var(--teal);
+    }
+
+    .status-dot.waiting {
+      background: var(--amber);
+      box-shadow: 0 0 10px var(--amber);
+    }
+
+    .status-dot.ended {
+      background: var(--danger);
+    }
+
+    .big-timer {
+      font-size: 46px;
+      font-weight: 700;
+      letter-spacing: .02em;
+      color: var(--text);
+      line-height: 1.05;
+    }
+
+    .big-timer.moving {
+      color: var(--teal);
+    }
+
+    .big-timer.waiting {
+      color: var(--amber);
+    }
+
+    .sub-line {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-top: 8px;
+    }
+
+    .sub-line a {
+      color: var(--teal);
+      text-decoration: none;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    button {
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: .02em;
+      border: none;
+      border-radius: 14px;
+      padding: 18px 10px;
+      cursor: pointer;
+      color: var(--text);
+      transition: transform .08s ease, opacity .15s ease;
+    }
+
+    button:active {
+      transform: scale(.97);
+    }
+
+    button:disabled {
+      opacity: .32;
+      cursor: not-allowed;
+    }
+
+    .btn-start {
+      background: var(--teal);
+      color: #08201d;
+      grid-column: 1/3;
+    }
+
+    .btn-depart {
+      background: var(--bg-elev2);
+      border: 1px solid var(--amber-dim);
+      color: var(--amber);
+    }
+
+    .btn-end {
+      background: var(--bg-elev2);
+      border: 1px solid var(--danger-dim);
+      color: var(--danger);
+    }
+
+    .btn-result {
+      background: var(--bg-elev2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      grid-column: 1/3;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 12.5px;
+      padding: 9px 12px;
+      font-weight: 600;
+      border-radius: 10px;
+    }
+
+    .btn-route {
+      background: var(--bg-elev);
+      border: 1px solid var(--teal-dim);
+      color: var(--teal);
+      font-size: 12.5px;
+      padding: 8px 12px;
+      font-weight: 600;
+      border-radius: 10px;
+    }
+
+    .notice {
+      font-size: 12.5px;
+      color: var(--text-dim);
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
+    .notice.err {
+      color: var(--danger);
+      border-color: var(--danger-dim);
+    }
+
+    #resultsSection {
+      display: none;
+    }
+
+    .summary-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .summary-box {
+      flex: 1;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .summary-box .label {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+      letter-spacing: .04em;
+    }
+
+    .summary-box .value {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .summary-box.teal .value {
+      color: var(--teal);
+    }
+
+    .summary-box.amber .value {
+      color: var(--amber);
+    }
+
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .leg-card,
+    .wait-card {
+      border-radius: 14px;
+      padding: 14px;
+      border: 1px solid var(--border);
+    }
+
+    .leg-card {
+      background: linear-gradient(180deg, rgba(73, 211, 200, .07), rgba(73, 211, 200, 0) 60%);
+      border-color: var(--teal-dim);
+    }
+
+    .wait-card {
+      background: linear-gradient(180deg, rgba(242, 169, 59, .06), rgba(242, 169, 59, 0) 60%);
+      border-color: var(--amber-dim);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .leg-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .leg-tag {
+      font-size: 11px;
+      color: var(--teal);
+      letter-spacing: .06em;
+      font-weight: 700;
+    }
+
+    .leg-dur {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .leg-points {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13.5px;
+    }
+
+    .point-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .point-row .t {
+      color: var(--text-dim);
+      width: 52px;
+      flex: none;
+    }
+
+    .point-row a {
+      color: var(--text);
+      text-decoration: none;
+      border-bottom: 1px dotted var(--text-dim);
+    }
+
+    .leg-foot {
+      margin-top: 10px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .wait-tag {
+      font-size: 11px;
+      color: var(--amber);
+      letter-spacing: .06em;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .wait-time {
+      font-size: 12.5px;
+      color: var(--text-dim);
+    }
+
+    .wait-dur {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--amber);
+    }
+
+    .inprogress {
+      font-size: 11px;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px 6px;
+      margin-left: 6px;
+    }
+
+    .result-actions {
+      display: flex;
+      gap: 8px;
+      margin: 16px 0;
+      flex-wrap: wrap;
+    }
+
+    .empty-msg {
+      font-size: 13px;
+      color: var(--text-dim);
+      text-align: center;
+      padding: 24px 0;
+    }
+
+    .screen {
+      display: none;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .title-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 36px 6px 10px;
+      gap: 14px;
+    }
+
+    .title-logo {
+      font-size: 52px;
+    }
+
+    .title-copy {
+      font-size: 14px;
+      color: var(--text-dim);
+      letter-spacing: .1em;
+      margin-bottom: 6px;
+    }
+
+    .btn-mode {
+      width: 100%;
+      max-width: 380px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 5px;
+      background: linear-gradient(180deg, var(--bg-elev) 0%, var(--bg-elev2) 100%);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px 20px;
+      text-align: left;
+    }
+
+    .btn-mode-ride {
+      border-color: var(--teal-dim);
+    }
+
+    .btn-mode-ride .mode-icon,
+    .btn-mode-ride .mode-label {
+      color: var(--teal);
+    }
+
+    .btn-mode-record {
+      border-color: var(--amber-dim);
+    }
+
+    .btn-mode-record .mode-icon,
+    .btn-mode-record .mode-label {
+      color: var(--amber);
+    }
+
+    .mode-icon {
+      font-size: 26px;
+    }
+
+    .mode-label {
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .mode-desc {
+      font-size: 12.5px;
+      color: var(--text-dim);
+      font-weight: 500;
+      letter-spacing: 0;
+    }
+
+    .btn-back {
+      display: inline-block;
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 6px 0 16px;
+      margin: 0;
+      cursor: pointer;
+    }
+
+    .screen-heading {
+      font-size: 15px;
+      font-weight: 700;
+      margin: 0 0 14px;
+      color: var(--text);
+    }
+
+    .record-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: transform .08s ease;
+    }
+
+    .record-item:active {
+      transform: scale(.98);
+    }
+
+    .record-item .rd-date {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .record-item .rd-sub {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    .record-item .rd-arrow {
+      color: var(--text-dim);
+      font-size: 20px;
+    }
+  </style>
 </head>
+
 <body>
 
-<header>
-  <h1>🚗 日報サポート</h1>
-  <div class="date mono" id="todayLabel">--</div>
-</header>
+  <header>
+    <h1>🚗 日報サポート</h1>
+    <div class="date mono" id="todayLabel">--</div>
+  </header>
 
-<div class="gauge-card" id="gaugeCard">
-  <div class="status-label"><span class="status-dot" id="statusDot"></span><span id="statusText">乗務前</span></div>
-  <div class="big-timer mono" id="bigTimer">00:00:00</div>
-  <div class="sub-line" id="subLine">「乗務開始」をタップして記録を始めてください</div>
-</div>
-
-<div class="notice" id="gpsNotice">位置情報の使用を許可すると自動記録が始まります。</div>
-
-<div class="controls">
-  <button class="btn-start" id="btnStart">乗務開始</button>
-  <button class="btn-depart" id="btnDepart" disabled>出発（強制区切り）</button>
-  <button class="btn-end" id="btnEnd" disabled>業務終了</button>
-  <button class="btn-result" id="btnResult">結果を表示</button>
-</div>
-
-<section id="resultsSection">
-  <div class="summary-row">
-    <div class="summary-box teal"><div class="label">走行区間</div><div class="value" id="sumLegs">0</div></div>
-    <div class="summary-box amber"><div class="label">待機時間 合計</div><div class="value" id="sumWait">0分</div></div>
-    <div class="summary-box"><div class="label">業務時間</div><div class="value" id="sumWork">-</div></div>
+  <div class="screen active" id="screenTitle">
+    <div class="title-wrap">
+      <div class="title-logo">🚗</div>
+      <div class="title-copy">日報サポートを開始します</div>
+      <button class="btn-mode btn-mode-ride" id="btnModeRide">
+        <span class="mode-icon">🚙</span>
+        <span class="mode-label">乗車モード</span>
+        <span class="mode-desc">乗務を開始して走行・待機を記録します</span>
+      </button>
+      <button class="btn-mode btn-mode-record" id="btnModeRecord">
+        <span class="mode-icon">📖</span>
+        <span class="mode-label">記録モード</span>
+        <span class="mode-desc">過去の記録を一覧で確認します</span>
+      </button>
+    </div>
   </div>
-  <div class="result-actions">
-    <button class="btn-route" id="btnAllRoute">🗺 全経路を表示</button>
-    <button class="btn-ghost" id="btnCsv">CSV出力</button>
+
+  <div class="screen" id="screenRide">
+    <button class="btn-back" id="btnBackFromRide">← タイトルに戻る</button>
+
+    <div class="gauge-card" id="gaugeCard">
+      <div class="status-label"><span class="status-dot" id="statusDot"></span><span id="statusText">乗務前</span></div>
+      <div class="big-timer mono" id="bigTimer">00:00:00</div>
+      <div class="sub-line" id="subLine">「乗務開始」をタップして記録を始めてください</div>
+    </div>
+
+    <div class="notice" id="gpsNotice">位置情報の使用を許可すると自動記録が始まります。</div>
+
+    <div class="controls">
+      <button class="btn-start" id="btnStart">乗務開始</button>
+      <button class="btn-depart" id="btnDepart" disabled>出発（強制区切り）</button>
+      <button class="btn-end" id="btnEnd" disabled>業務終了</button>
+      <button class="btn-result" id="btnResult">結果を表示</button>
+    </div>
+
+    <section id="resultsSection">
+      <div class="summary-row">
+        <div class="summary-box teal">
+          <div class="label">走行区間</div>
+          <div class="value" id="sumLegs">0</div>
+        </div>
+        <div class="summary-box amber">
+          <div class="label">待機時間 合計</div>
+          <div class="value" id="sumWait">0分</div>
+        </div>
+        <div class="summary-box">
+          <div class="label">業務時間</div>
+          <div class="value" id="sumWork">-</div>
+        </div>
+      </div>
+      <div class="result-actions">
+        <button class="btn-route" id="btnAllRoute">🗺 全経路を表示</button>
+        <button class="btn-ghost" id="btnCsv">CSV出力</button>
+        <button class="btn-ghost" id="btnNewShift" style="display:none;">🔄 新しい記録を開始</button>
+      </div>
+      <div class="timeline" id="timeline"></div>
+    </section>
   </div>
-  <div class="timeline" id="timeline"></div>
-</section>
 
-<script>
-(function(){
-  "use strict";
+  <div class="screen" id="screenRecordList">
+    <button class="btn-back" id="btnBackFromList">← タイトルに戻る</button>
+    <h2 class="screen-heading">記録一覧</h2>
+    <div id="recordListContainer"></div>
+  </div>
 
-  // ---------- 定数 ----------
-  const STILL_METERS = 30;          // これ未満の移動は「停止」とみなす誤差
-  const STILL_MS = 5*60*1000;       // 5分停止で到着とみなす
-  const TICK_MS = 1000;
+  <div class="screen" id="screenRecordDetail">
+    <button class="btn-back" id="btnBackFromDetail">← 記録一覧に戻る</button>
+    <h2 class="screen-heading mono" id="recordDetailDate">--</h2>
+    <div class="summary-row" id="recordDetailSummary"></div>
+    <div class="result-actions">
+      <button class="btn-route" id="btnRecordAllRoute">🗺 全経路を表示</button>
+      <button class="btn-ghost" id="btnRecordCsv">CSV出力</button>
+      <button class="btn-ghost" id="btnRecordDelete">🗑 この記録を削除</button>
+    </div>
+    <div class="timeline" id="recordDetailTimeline"></div>
+  </div>
 
-  // ---------- 状態 ----------
-  let state = "idle"; // idle | moving | waiting | ended
-  let watchId = null;
+  <script>
+    (function () {
+      "use strict";
 
-  let workStart = null, workEnd = null;
-  let legs = [];   // {depPoint, depTime, arrPoint, arrTime, path:[{lat,lng,t}]}
-  let waits = [];  // {point, startTime, endTime}
+      // ---------- 定数 ----------
+      const STILL_METERS = 30;          // これ未満の移動は「停止」とみなす誤差
+      const STILL_MS = 5 * 60 * 1000;       // 5分停止で到着とみなす
+      const TICK_MS = 1000;
 
-  let curLegDep = null, curLegDepTime = null, curLegPath = [];
-  let anchorPoint = null, anchorTime = null;
-  let waitPoint = null, waitStart = null;
+      // ---------- 状態 ----------
+      let state = "idle"; // idle | moving | waiting | ended
+      let watchId = null;
 
-  // ---------- DOM ----------
-  const $ = id => document.getElementById(id);
-  const statusDot = $("statusDot"), statusText = $("statusText"), bigTimer = $("bigTimer"), subLine = $("subLine");
-  const btnStart = $("btnStart"), btnDepart = $("btnDepart"), btnEnd = $("btnEnd"), btnResult = $("btnResult");
-  const gpsNotice = $("gpsNotice");
-  const resultsSection = $("resultsSection");
+      let workStart = null, workEnd = null;
+      let legs = [];   // {depPoint, depTime, arrPoint, arrTime, path:[{lat,lng,t}]}
+      let waits = [];  // {point, startTime, endTime}
 
-  $("todayLabel").textContent = new Date().toLocaleDateString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",weekday:"short"});
+      let curLegDep = null, curLegDepTime = null, curLegPath = [];
+      let anchorPoint = null, anchorTime = null;
+      let waitPoint = null, waitStart = null;
 
-  // ---------- ユーティリティ ----------
-  function distanceMeters(a,b){
-    const R=6371000;
-    const dLat=(b.lat-a.lat)*Math.PI/180, dLng=(b.lng-a.lng)*Math.PI/180;
-    const la1=a.lat*Math.PI/180, la2=b.lat*Math.PI/180;
-    const h=Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)**2;
-    return 2*R*Math.asin(Math.sqrt(h));
-  }
-  function fmtClock(ms){
-    const d=new Date(ms);
-    return d.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"});
-  }
-  function fmtHMS(ms){
-    ms=Math.max(0,ms);
-    const s=Math.floor(ms/1000);
-    const hh=String(Math.floor(s/3600)).padStart(2,"0");
-    const mm=String(Math.floor((s%3600)/60)).padStart(2,"0");
-    const ss=String(s%60).padStart(2,"0");
-    return `${hh}:${mm}:${ss}`;
-  }
-  function fmtDuration(ms){
-    ms=Math.max(0,ms);
-    const totalMin=Math.round(ms/60000);
-    const h=Math.floor(totalMin/60), m=totalMin%60;
-    if(h<=0) return `${m}分`;
-    if(m===0) return `${h}時間`;
-    return `${h}時間${m}分`;
-  }
-  function pointLink(p){
-    return `https://www.google.com/maps/search/?api=1&query=${p.lat.toFixed(6)},${p.lng.toFixed(6)}`;
-  }
-  function sample(arr,max){
-    if(arr.length<=max) return arr.slice();
-    const out=[];
-    const step=(arr.length-1)/(max-1);
-    for(let i=0;i<max;i++) out.push(arr[Math.round(i*step)]);
-    return out;
-  }
-  function routeLink(path){
-    if(!path || path.length<2) return null;
-    const pts = sample(path,25);
-    const origin = pts[0], destination = pts[pts.length-1];
-    const mid = pts.slice(1,-1);
-    let url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat.toFixed(6)},${origin.lng.toFixed(6)}`
-            + `&destination=${destination.lat.toFixed(6)},${destination.lng.toFixed(6)}`
-            + `&travelmode=driving`;
-    if(mid.length){
-      url += `&waypoints=${mid.map(p=>`${p.lat.toFixed(6)},${p.lng.toFixed(6)}`).join("|")}`;
-    }
-    return url;
-  }
-  function allRouteLink(){
-    let full=[];
-    legs.forEach(l=>{ full = full.concat(l.path); });
-    if(state==="moving") full = full.concat(curLegPath);
-    return routeLink(full);
-  }
+      // ---------- DOM ----------
+      const $ = id => document.getElementById(id);
+      const statusDot = $("statusDot"), statusText = $("statusText"), bigTimer = $("bigTimer"), subLine = $("subLine");
+      const btnStart = $("btnStart"), btnDepart = $("btnDepart"), btnEnd = $("btnEnd"), btnResult = $("btnResult");
+      const gpsNotice = $("gpsNotice");
+      const resultsSection = $("resultsSection");
 
-  // ---------- 表示更新 ----------
-  function setStatus(kind,label){
-    statusDot.className = "status-dot" + (kind?(" "+kind):"");
-    statusText.textContent = label;
-    bigTimer.className = "big-timer mono" + (kind==="moving"?" moving":kind==="waiting"?" waiting":"");
-  }
+      $("todayLabel").textContent = new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" });
 
-  function tick(){
-    const now=Date.now();
-    if(state==="moving"){
-      setStatus("moving","走行中（区間 "+(legs.length+1)+"）");
-      bigTimer.textContent = fmtHMS(now-curLegDepTime);
-      subLine.innerHTML = `出発 ${fmtClock(curLegDepTime)}｜停止5分で自動的に到着記録します`;
-    } else if(state==="waiting"){
-      setStatus("waiting","待機中");
-      bigTimer.textContent = fmtHMS(now-waitStart);
-      subLine.innerHTML = `到着 ${fmtClock(waitStart)}｜動き出すと自動的に次の区間を開始します`;
-    } else if(state==="ended"){
-      setStatus("ended","業務終了");
-      bigTimer.textContent = fmtHMS((workEnd||now)-(workStart||now));
-      subLine.textContent = "本日の記録は終了しました。「結果を表示」で確認できます。";
-    } else {
-      setStatus("","乗務前");
-      bigTimer.textContent = "00:00:00";
-      subLine.textContent = "「乗務開始」をタップして記録を始めてください";
-    }
-  }
-  setInterval(tick,TICK_MS);
-  tick();
-
-  function refreshButtons(){
-    btnStart.disabled = state!=="idle";
-    btnDepart.disabled = state!=="moving";
-    btnEnd.disabled = !(state==="moving"||state==="waiting");
-  }
-
-  // ---------- GPSコールバック ----------
-  function onPosition(pos){
-    const p = {lat:pos.coords.latitude, lng:pos.coords.longitude, t:Date.now()};
-    if(pos.coords.accuracy && pos.coords.accuracy>100) return; // 精度が悪い測位は無視
-
-    if(state==="moving"){
-      curLegPath.push(p);
-      if(!anchorPoint){ anchorPoint=p; anchorTime=p.t; return; }
-      const d = distanceMeters(anchorPoint,p);
-      if(d > STILL_METERS){
-        anchorPoint = p; anchorTime = p.t; // 動いている間はアンカーを更新し続ける
-      } else if(p.t - anchorTime >= STILL_MS){
-        arriveAt(anchorPoint, anchorTime);
+      // ---------- 画面切り替え ----------
+      const RECORDS_KEY = "nippo_records_v1";
+      const screens = {
+        title: $("screenTitle"),
+        ride: $("screenRide"),
+        recordList: $("screenRecordList"),
+        recordDetail: $("screenRecordDetail")
+      };
+      function showScreen(name) {
+        Object.values(screens).forEach(s => s.classList.remove("active"));
+        screens[name].classList.add("active");
       }
-    } else if(state==="waiting"){
-      const d = distanceMeters(waitPoint,p);
-      if(d > STILL_METERS){
-        departFromWaiting(p);
+      let currentRecordId = null;
+
+      $("btnModeRide").addEventListener("click", () => showScreen("ride"));
+      $("btnModeRecord").addEventListener("click", () => { renderRecordList(); showScreen("recordList"); });
+      $("btnBackFromRide").addEventListener("click", () => showScreen("title"));
+      $("btnBackFromList").addEventListener("click", () => showScreen("title"));
+      $("btnBackFromDetail").addEventListener("click", () => { renderRecordList(); showScreen("recordList"); });
+
+      // ---------- 過去の記録の保存・読込 ----------
+      function loadRecords() {
+        try { return JSON.parse(localStorage.getItem(RECORDS_KEY)) || []; }
+        catch (e) { return []; }
       }
-    }
-  }
-  function onPositionError(err){
-    gpsNotice.textContent = "位置情報を取得できません（"+(err.message||"エラー")+"）。設定をご確認ください。";
-    gpsNotice.classList.add("err");
-  }
+      function saveRecordsToStorage(recs) {
+        localStorage.setItem(RECORDS_KEY, JSON.stringify(recs));
+      }
+      function saveCurrentRecord() {
+        const recs = loadRecords();
+        recs.push({ id: Date.now(), workStart, workEnd, legs, waits });
+        saveRecordsToStorage(recs);
+      }
 
-  function startWatch(){
-    if(!("geolocation" in navigator)){
-      gpsNotice.textContent = "この端末では位置情報が利用できません。";
-      gpsNotice.classList.add("err");
-      return;
-    }
-    watchId = navigator.geolocation.watchPosition(onPosition,onPositionError,{
-      enableHighAccuracy:true, maximumAge:0, timeout:20000
-    });
-    gpsNotice.textContent = "GPS記録中です。画面を閉じると記録が止まる場合があります。";
-  }
-  function stopWatch(){
-    if(watchId!==null){ navigator.geolocation.clearWatch(watchId); watchId=null; }
-  }
+      function renderRecordList() {
+        const recs = loadRecords().slice().sort((a, b) => b.id - a.id);
+        const container = $("recordListContainer");
+        container.innerHTML = "";
+        if (recs.length === 0) {
+          container.innerHTML = '<div class="empty-msg">まだ記録がありません。</div>';
+          return;
+        }
+        recs.forEach(rec => {
+          const div = document.createElement("div");
+          div.className = "record-item";
+          const dateLabel = new Date(rec.workStart).toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" });
+          const workDur = fmtDuration((rec.workEnd || Date.now()) - rec.workStart);
+          div.innerHTML = `
+        <div>
+          <div class="rd-date mono">${dateLabel}</div>
+          <div class="rd-sub">業務時間 ${workDur}｜走行区間 ${rec.legs.length}件</div>
+        </div>
+        <div class="rd-arrow">›</div>
+      `;
+          div.addEventListener("click", () => {
+            currentRecordId = rec.id;
+            renderRecordDetail(rec);
+            showScreen("recordDetail");
+          });
+          container.appendChild(div);
+        });
+      }
 
-  // ---------- 状態遷移 ----------
-  function arriveAt(point, time){
-    legs.push({depPoint:curLegDep, depTime:curLegDepTime, arrPoint:point, arrTime:time, path:curLegPath.slice()});
-    state = "waiting";
-    waitPoint = point; waitStart = time;
-    refreshButtons();
-  }
-  function departFromWaiting(p){
-    waits.push({point:waitPoint, startTime:waitStart, endTime:p.t});
-    curLegDep = p; curLegDepTime = p.t; curLegPath=[p];
-    anchorPoint = p; anchorTime = p.t;
-    state = "moving";
-    refreshButtons();
-  }
+      function renderRecordDetail(rec) {
+        $("recordDetailDate").textContent = new Date(rec.workStart).toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" });
+        const totalWait = rec.waits.reduce((s, w) => s + (w.endTime - w.startTime), 0);
+        $("recordDetailSummary").innerHTML = `
+      <div class="summary-box teal"><div class="label">走行区間</div><div class="value">${rec.legs.length}</div></div>
+      <div class="summary-box amber"><div class="label">待機時間 合計</div><div class="value">${fmtDuration(totalWait)}</div></div>
+      <div class="summary-box"><div class="label">業務時間</div><div class="value">${fmtDuration((rec.workEnd || Date.now()) - rec.workStart)}</div></div>
+    `;
+        const timeline = $("recordDetailTimeline");
+        timeline.innerHTML = "";
+        if (rec.legs.length === 0 && rec.waits.length === 0) {
+          timeline.innerHTML = '<div class="empty-msg">記録がありません。</div>';
+        } else {
+          renderTimelineInto(timeline, rec.legs, rec.waits);
+        }
+      }
 
-  btnStart.addEventListener("click", ()=>{
-    if(state!=="idle") return;
-    navigator.geolocation.getCurrentPosition(pos=>{
-      const p = {lat:pos.coords.latitude,lng:pos.coords.longitude,t:Date.now()};
-      workStart = p.t;
-      curLegDep = p; curLegDepTime = p.t; curLegPath=[p];
-      anchorPoint = p; anchorTime = p.t;
-      state = "moving";
+      $("btnRecordAllRoute").addEventListener("click", () => {
+        const rec = loadRecords().find(r => r.id === currentRecordId);
+        if (!rec) return;
+        let full = [];
+        rec.legs.forEach(l => { full = full.concat(l.path); });
+        const link = routeLink(full);
+        if (link) window.open(link, "_blank");
+        else alert("表示できる経路がありません。");
+      });
+
+      $("btnRecordCsv").addEventListener("click", () => {
+        const rec = loadRecords().find(r => r.id === currentRecordId);
+        if (!rec) return;
+        exportCsvGeneric(rec.legs, rec.waits, new Date(rec.workStart));
+      });
+
+      $("btnRecordDelete").addEventListener("click", () => {
+        if (!confirm("この記録を削除しますか？")) return;
+        const recs = loadRecords().filter(r => r.id !== currentRecordId);
+        saveRecordsToStorage(recs);
+        renderRecordList();
+        showScreen("recordList");
+      });
+
+      function resetForNewShift() {
+        state = "idle";
+        workStart = null; workEnd = null;
+        legs = []; waits = [];
+        curLegDep = null; curLegDepTime = null; curLegPath = [];
+        anchorPoint = null; anchorTime = null;
+        waitPoint = null; waitStart = null;
+        gpsNotice.classList.remove("err");
+        gpsNotice.textContent = "位置情報の使用を許可すると自動記録が始まります。";
+        resultsSection.style.display = "none";
+        $("btnNewShift").style.display = "none";
+        refreshButtons();
+        tick();
+      }
+      $("btnNewShift").addEventListener("click", resetForNewShift);
+
+      // ---------- ユーティリティ ----------
+      function distanceMeters(a, b) {
+        const R = 6371000;
+        const dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180;
+        const la1 = a.lat * Math.PI / 180, la2 = b.lat * Math.PI / 180;
+        const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(h));
+      }
+      function fmtClock(ms) {
+        const d = new Date(ms);
+        return d.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+      }
+      function fmtHMS(ms) {
+        ms = Math.max(0, ms);
+        const s = Math.floor(ms / 1000);
+        const hh = String(Math.floor(s / 3600)).padStart(2, "0");
+        const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+        const ss = String(s % 60).padStart(2, "0");
+        return `${hh}:${mm}:${ss}`;
+      }
+      function fmtDuration(ms) {
+        ms = Math.max(0, ms);
+        const totalMin = Math.round(ms / 60000);
+        const h = Math.floor(totalMin / 60), m = totalMin % 60;
+        if (h <= 0) return `${m}分`;
+        if (m === 0) return `${h}時間`;
+        return `${h}時間${m}分`;
+      }
+      function pointLink(p) {
+        return `https://www.google.com/maps/search/?api=1&query=${p.lat.toFixed(6)},${p.lng.toFixed(6)}`;
+      }
+      function sample(arr, max) {
+        if (arr.length <= max) return arr.slice();
+        const out = [];
+        const step = (arr.length - 1) / (max - 1);
+        for (let i = 0; i < max; i++) out.push(arr[Math.round(i * step)]);
+        return out;
+      }
+      function routeLink(path) {
+        if (!path || path.length < 2) return null;
+        const pts = sample(path, 25);
+        const origin = pts[0], destination = pts[pts.length - 1];
+        const mid = pts.slice(1, -1);
+        let url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat.toFixed(6)},${origin.lng.toFixed(6)}`
+          + `&destination=${destination.lat.toFixed(6)},${destination.lng.toFixed(6)}`
+          + `&travelmode=driving`;
+        if (mid.length) {
+          url += `&waypoints=${mid.map(p => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`).join("|")}`;
+        }
+        return url;
+      }
+      function allRouteLink() {
+        let full = [];
+        legs.forEach(l => { full = full.concat(l.path); });
+        if (state === "moving") full = full.concat(curLegPath);
+        return routeLink(full);
+      }
+
+      // ---------- 表示更新 ----------
+      function setStatus(kind, label) {
+        statusDot.className = "status-dot" + (kind ? (" " + kind) : "");
+        statusText.textContent = label;
+        bigTimer.className = "big-timer mono" + (kind === "moving" ? " moving" : kind === "waiting" ? " waiting" : "");
+      }
+
+      function tick() {
+        const now = Date.now();
+        if (state === "moving") {
+          setStatus("moving", "走行中（区間 " + (legs.length + 1) + "）");
+          bigTimer.textContent = fmtHMS(now - curLegDepTime);
+          subLine.innerHTML = `出発 ${fmtClock(curLegDepTime)}｜停止5分で自動的に到着記録します`;
+        } else if (state === "waiting") {
+          setStatus("waiting", "待機中");
+          bigTimer.textContent = fmtHMS(now - waitStart);
+          subLine.innerHTML = `到着 ${fmtClock(waitStart)}｜動き出すと自動的に次の区間を開始します`;
+        } else if (state === "ended") {
+          setStatus("ended", "業務終了");
+          bigTimer.textContent = fmtHMS((workEnd || now) - (workStart || now));
+          subLine.textContent = "本日の記録は終了しました。「結果を表示」で確認できます。";
+        } else {
+          setStatus("", "乗務前");
+          bigTimer.textContent = "00:00:00";
+          subLine.textContent = "「乗務開始」をタップして記録を始めてください";
+        }
+      }
+      setInterval(tick, TICK_MS);
+      tick();
+
+      function refreshButtons() {
+        btnStart.disabled = state !== "idle";
+        btnDepart.disabled = state !== "moving";
+        btnEnd.disabled = !(state === "moving" || state === "waiting");
+      }
+
+      // ---------- GPSコールバック ----------
+      function onPosition(pos) {
+        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, t: Date.now() };
+        if (pos.coords.accuracy && pos.coords.accuracy > 100) return; // 精度が悪い測位は無視
+
+        if (state === "moving") {
+          curLegPath.push(p);
+          if (!anchorPoint) { anchorPoint = p; anchorTime = p.t; return; }
+          const d = distanceMeters(anchorPoint, p);
+          if (d > STILL_METERS) {
+            anchorPoint = p; anchorTime = p.t; // 動いている間はアンカーを更新し続ける
+          } else if (p.t - anchorTime >= STILL_MS) {
+            arriveAt(anchorPoint, anchorTime);
+          }
+        } else if (state === "waiting") {
+          const d = distanceMeters(waitPoint, p);
+          if (d > STILL_METERS) {
+            departFromWaiting(p);
+          }
+        }
+      }
+      function onPositionError(err) {
+        gpsNotice.textContent = "位置情報を取得できません（" + (err.message || "エラー") + "）。設定をご確認ください。";
+        gpsNotice.classList.add("err");
+      }
+
+      function startWatch() {
+        if (!("geolocation" in navigator)) {
+          gpsNotice.textContent = "この端末では位置情報が利用できません。";
+          gpsNotice.classList.add("err");
+          return;
+        }
+        watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
+          enableHighAccuracy: true, maximumAge: 0, timeout: 20000
+        });
+        gpsNotice.textContent = "GPS記録中です。画面を閉じると記録が止まる場合があります。";
+      }
+      function stopWatch() {
+        if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+      }
+
+      // ---------- 状態遷移 ----------
+      function arriveAt(point, time) {
+        legs.push({ depPoint: curLegDep, depTime: curLegDepTime, arrPoint: point, arrTime: time, path: curLegPath.slice() });
+        state = "waiting";
+        waitPoint = point; waitStart = time;
+        refreshButtons();
+      }
+      function departFromWaiting(p) {
+        waits.push({ point: waitPoint, startTime: waitStart, endTime: p.t });
+        curLegDep = p; curLegDepTime = p.t; curLegPath = [p];
+        anchorPoint = p; anchorTime = p.t;
+        state = "moving";
+        refreshButtons();
+      }
+
+      btnStart.addEventListener("click", () => {
+        if (state !== "idle") return;
+        navigator.geolocation.getCurrentPosition(pos => {
+          const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, t: Date.now() };
+          workStart = p.t;
+          curLegDep = p; curLegDepTime = p.t; curLegPath = [p];
+          anchorPoint = p; anchorTime = p.t;
+          state = "moving";
+          refreshButtons();
+          startWatch();
+        }, onPositionError, { enableHighAccuracy: true, timeout: 20000 });
+      });
+
+      btnDepart.addEventListener("click", () => {
+        if (state !== "moving") return;
+        navigator.geolocation.getCurrentPosition(pos => {
+          const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, t: Date.now() };
+          curLegPath.push(p);
+          legs.push({ depPoint: curLegDep, depTime: curLegDepTime, arrPoint: p, arrTime: p.t, path: curLegPath.slice() });
+          curLegDep = p; curLegDepTime = p.t; curLegPath = [p];
+          anchorPoint = p; anchorTime = p.t;
+          // stateはmovingのまま（待機を挟まない強制区切り）
+        }, onPositionError, { enableHighAccuracy: true, timeout: 20000 });
+      });
+
+      btnEnd.addEventListener("click", () => {
+        if (!(state === "moving" || state === "waiting")) return;
+        const finish = (p) => {
+          if (state === "moving") {
+            if (p) curLegPath.push(p);
+            const last = p || curLegPath[curLegPath.length - 1] || curLegDep;
+            legs.push({ depPoint: curLegDep, depTime: curLegDepTime, arrPoint: last, arrTime: (p ? p.t : Date.now()), path: curLegPath.slice() });
+          } else if (state === "waiting") {
+            waits.push({ point: waitPoint, startTime: waitStart, endTime: Date.now() });
+          }
+          workEnd = Date.now();
+          state = "ended";
+          stopWatch();
+          refreshButtons();
+          renderResults();
+          resultsSection.style.display = "block";
+          saveCurrentRecord();
+          $("btnNewShift").style.display = "inline-block";
+        };
+        navigator.geolocation.getCurrentPosition(pos => {
+          finish({ lat: pos.coords.latitude, lng: pos.coords.longitude, t: Date.now() });
+        }, () => finish(null), { enableHighAccuracy: true, timeout: 8000 });
+      });
+
+      btnResult.addEventListener("click", () => {
+        renderResults();
+        resultsSection.style.display = resultsSection.style.display === "block" ? "none" : "block";
+      });
+
+      $("btnAllRoute").addEventListener("click", () => {
+        const link = allRouteLink();
+        if (link) window.open(link, "_blank");
+        else alert("表示できる経路がまだありません。");
+      });
+
+      $("btnCsv").addEventListener("click", exportCsv);
+
       refreshButtons();
-      startWatch();
-    }, onPositionError, {enableHighAccuracy:true, timeout:20000});
-  });
 
-  btnDepart.addEventListener("click", ()=>{
-    if(state!=="moving") return;
-    navigator.geolocation.getCurrentPosition(pos=>{
-      const p = {lat:pos.coords.latitude,lng:pos.coords.longitude,t:Date.now()};
-      curLegPath.push(p);
-      legs.push({depPoint:curLegDep, depTime:curLegDepTime, arrPoint:p, arrTime:p.t, path:curLegPath.slice()});
-      curLegDep = p; curLegDepTime = p.t; curLegPath=[p];
-      anchorPoint = p; anchorTime = p.t;
-      // stateはmovingのまま（待機を挟まない強制区切り）
-    }, onPositionError, {enableHighAccuracy:true, timeout:20000});
-  });
+      // ---------- 結果表示 ----------
+      function renderTimelineInto(container, legsArr, waitsArr) {
+        // 走行区間と待機を時系列に並べる
+        const items = [];
+        legsArr.forEach((l, i) => { items.push({ type: "leg", data: l, idx: i + 1 }); });
+        waitsArr.forEach(w => { items.push({ type: "wait", data: w }); });
+        items.sort((a, b) => {
+          const ta = a.type === "leg" ? a.data.depTime : a.data.startTime;
+          const tb = b.type === "leg" ? b.data.depTime : b.data.startTime;
+          return ta - tb;
+        });
 
-  btnEnd.addEventListener("click", ()=>{
-    if(!(state==="moving"||state==="waiting")) return;
-    const finish = (p)=>{
-      if(state==="moving"){
-        if(p) curLegPath.push(p);
-        const last = p || curLegPath[curLegPath.length-1] || curLegDep;
-        legs.push({depPoint:curLegDep, depTime:curLegDepTime, arrPoint:last, arrTime:(p?p.t:Date.now()), path:curLegPath.slice()});
-      } else if(state==="waiting"){
-        waits.push({point:waitPoint, startTime:waitStart, endTime:Date.now()});
-      }
-      workEnd = Date.now();
-      state = "ended";
-      stopWatch();
-      refreshButtons();
-      renderResults();
-      resultsSection.style.display = "block";
-    };
-    navigator.geolocation.getCurrentPosition(pos=>{
-      finish({lat:pos.coords.latitude,lng:pos.coords.longitude,t:Date.now()});
-    }, ()=>finish(null), {enableHighAccuracy:true, timeout:8000});
-  });
-
-  btnResult.addEventListener("click", ()=>{
-    renderResults();
-    resultsSection.style.display = resultsSection.style.display==="block" ? "none" : "block";
-  });
-
-  $("btnAllRoute").addEventListener("click", ()=>{
-    const link = allRouteLink();
-    if(link) window.open(link,"_blank");
-    else alert("表示できる経路がまだありません。");
-  });
-
-  $("btnCsv").addEventListener("click", exportCsv);
-
-  refreshButtons();
-
-  // ---------- 結果表示 ----------
-  function renderResults(){
-    const timeline = $("timeline");
-    timeline.innerHTML = "";
-
-    if(legs.length===0 && state!=="moving"){
-      timeline.innerHTML = '<div class="empty-msg">まだ記録がありません。</div>';
-    }
-
-    // 走行区間と待機を時系列に並べる
-    const items = [];
-    legs.forEach((l,i)=>{ items.push({type:"leg", data:l, idx:i+1}); });
-    waits.forEach(w=>{ items.push({type:"wait", data:w}); });
-    items.sort((a,b)=>{
-      const ta = a.type==="leg" ? a.data.depTime : a.data.startTime;
-      const tb = b.type==="leg" ? b.data.depTime : b.data.startTime;
-      return ta-tb;
-    });
-
-    items.forEach(item=>{
-      if(item.type==="leg"){
-        const l = item.data;
-        const dur = l.arrTime - l.depTime;
-        const card = document.createElement("div");
-        card.className = "leg-card";
-        const rlink = routeLink(l.path);
-        card.innerHTML = `
+        items.forEach(item => {
+          if (item.type === "leg") {
+            const l = item.data;
+            const dur = l.arrTime - l.depTime;
+            const card = document.createElement("div");
+            card.className = "leg-card";
+            const rlink = routeLink(l.path);
+            card.innerHTML = `
           <div class="leg-head">
             <span class="leg-tag">区間 ${item.idx}</span>
             <span class="leg-dur">${fmtDuration(dur)}</span>
@@ -442,81 +997,96 @@
             <div class="point-row"><span class="t mono">${fmtClock(l.depTime)}</span><a href="${pointLink(l.depPoint)}" target="_blank">📍 出発地点を地図で見る</a></div>
             <div class="point-row"><span class="t mono">${fmtClock(l.arrTime)}</span><a href="${pointLink(l.arrPoint)}" target="_blank">🏁 到着地点を地図で見る</a></div>
           </div>
-          <div class="leg-foot">${rlink?`<button class="btn-route" onclick="window.open('${rlink}','_blank')">🗺 経路</button>`:""}</div>
+          <div class="leg-foot">${rlink ? `<button class="btn-route" onclick="window.open('${rlink}','_blank')">🗺 経路</button>` : ""}</div>
         `;
-        timeline.appendChild(card);
-      } else {
-        const w = item.data;
-        const dur = w.endTime - w.startTime;
-        const card = document.createElement("div");
-        card.className = "wait-card";
-        card.innerHTML = `
+            container.appendChild(card);
+          } else {
+            const w = item.data;
+            const dur = w.endTime - w.startTime;
+            const card = document.createElement("div");
+            card.className = "wait-card";
+            card.innerHTML = `
           <div>
             <div class="wait-tag">待機</div>
             <div class="wait-time mono">${fmtClock(w.startTime)} 〜 ${fmtClock(w.endTime)}</div>
           </div>
           <div class="wait-dur mono">${fmtDuration(dur)}</div>
         `;
-        timeline.appendChild(card);
+            container.appendChild(card);
+          }
+        });
       }
-    });
 
-    if(state==="moving"){
-      const card = document.createElement("div");
-      card.className = "leg-card";
-      card.innerHTML = `
-        <div class="leg-head"><span class="leg-tag">区間 ${legs.length+1}<span class="inprogress">進行中</span></span></div>
+      function renderResults() {
+        const timeline = $("timeline");
+        timeline.innerHTML = "";
+
+        if (legs.length === 0 && state !== "moving") {
+          timeline.innerHTML = '<div class="empty-msg">まだ記録がありません。</div>';
+        }
+
+        renderTimelineInto(timeline, legs, waits);
+
+        if (state === "moving") {
+          const card = document.createElement("div");
+          card.className = "leg-card";
+          card.innerHTML = `
+        <div class="leg-head"><span class="leg-tag">区間 ${legs.length + 1}<span class="inprogress">進行中</span></span></div>
         <div class="leg-points">
           <div class="point-row"><span class="t mono">${fmtClock(curLegDepTime)}</span><a href="${pointLink(curLegDep)}" target="_blank">📍 出発地点を地図で見る</a></div>
         </div>`;
-      timeline.appendChild(card);
-    }
-    if(state==="waiting"){
-      const card = document.createElement("div");
-      card.className = "wait-card";
-      card.innerHTML = `
+          timeline.appendChild(card);
+        }
+        if (state === "waiting") {
+          const card = document.createElement("div");
+          card.className = "wait-card";
+          card.innerHTML = `
         <div><div class="wait-tag">待機中<span class="inprogress">進行中</span></div>
         <div class="wait-time mono">${fmtClock(waitStart)} 〜 -</div></div>
-        <div class="wait-dur mono">${fmtDuration(Date.now()-waitStart)}</div>`;
-      timeline.appendChild(card);
-    }
+        <div class="wait-dur mono">${fmtDuration(Date.now() - waitStart)}</div>`;
+          timeline.appendChild(card);
+        }
 
-    // サマリー
-    $("sumLegs").textContent = legs.length + (state==="moving"?" (+1進行中)":"");
-    const totalWait = waits.reduce((s,w)=>s+(w.endTime-w.startTime),0) + (state==="waiting"?Date.now()-waitStart:0);
-    $("sumWait").textContent = fmtDuration(totalWait);
-    $("sumWork").textContent = workStart ? fmtDuration((workEnd||Date.now())-workStart) : "-";
-  }
+        // サマリー
+        $("sumLegs").textContent = legs.length + (state === "moving" ? " (+1進行中)" : "");
+        const totalWait = waits.reduce((s, w) => s + (w.endTime - w.startTime), 0) + (state === "waiting" ? Date.now() - waitStart : 0);
+        $("sumWait").textContent = fmtDuration(totalWait);
+        $("sumWork").textContent = workStart ? fmtDuration((workEnd || Date.now()) - workStart) : "-";
+      }
 
-  // ---------- CSV出力 ----------
-  function exportCsv(){
-    const rows = [["種別","開始時刻","終了時刻","所要時間","出発地点URL","到着地点URL","経路URL"]];
-    const items = [];
-    legs.forEach(l=>items.push({type:"走行", s:l.depTime, e:l.arrTime, dep:l.depPoint, arr:l.arrPoint, path:l.path}));
-    waits.forEach(w=>items.push({type:"待機", s:w.startTime, e:w.endTime}));
-    items.sort((a,b)=>a.s-b.s);
-    items.forEach(it=>{
-      rows.push([
-        it.type,
-        new Date(it.s).toLocaleString("ja-JP"),
-        new Date(it.e).toLocaleString("ja-JP"),
-        fmtDuration(it.e-it.s),
-        it.dep?pointLink(it.dep):"",
-        it.arr?pointLink(it.arr):"",
-        it.path?(routeLink(it.path)||""):""
-      ]);
-    });
-    const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n");
-    const blob = new Blob(["\uFEFF"+csv], {type:"text/csv"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `日報_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
+      // ---------- CSV出力 ----------
+      function exportCsvGeneric(legsArr, waitsArr, dateObj) {
+        const rows = [["種別", "開始時刻", "終了時刻", "所要時間", "出発地点URL", "到着地点URL", "経路URL"]];
+        const items = [];
+        legsArr.forEach(l => items.push({ type: "走行", s: l.depTime, e: l.arrTime, dep: l.depPoint, arr: l.arrPoint, path: l.path }));
+        waitsArr.forEach(w => items.push({ type: "待機", s: w.startTime, e: w.endTime }));
+        items.sort((a, b) => a.s - b.s);
+        items.forEach(it => {
+          rows.push([
+            it.type,
+            new Date(it.s).toLocaleString("ja-JP"),
+            new Date(it.e).toLocaleString("ja-JP"),
+            fmtDuration(it.e - it.s),
+            it.dep ? pointLink(it.dep) : "",
+            it.arr ? pointLink(it.arr) : "",
+            it.path ? (routeLink(it.path) || "") : ""
+          ]);
+        });
+        const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `日報_${dateObj.toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+      function exportCsv() {
+        exportCsvGeneric(legs, waits, new Date());
+      }
 
-})();
-</script>
+    })();
+  </script>
 </body>
+
 </html>
