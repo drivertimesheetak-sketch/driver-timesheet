@@ -3,7 +3,13 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#12151a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="日報サポート">
+  <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22%E6%97%A5%E5%A0%B1%E3%82%B5%E3%83%9D%E3%83%BC%E3%83%88%22%2C%22short_name%22%3A%22%E6%97%A5%E5%A0%B1%22%2C%22start_url%22%3A%22.%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%2312151a%22%2C%22theme_color%22%3A%22%2312151a%22%7D">
   <title>日報サポート - 走行記録</title>
   <style>
     :root {
@@ -36,8 +42,10 @@
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
       min-height: 100vh;
-      padding: 16px 14px calc(env(safe-area-inset-bottom) + 24px);
+      min-height: 100dvh;
+      padding: calc(env(safe-area-inset-top) + 16px) 14px calc(env(safe-area-inset-bottom) + 24px);
       -webkit-tap-highlight-color: transparent;
+      overscroll-behavior-y: contain;
     }
 
     .mono {
@@ -518,6 +526,77 @@
       color: var(--text-dim);
       font-size: 20px;
     }
+
+    .rd-toprow {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .record-item .rd-time {
+      font-size: 12.5px;
+      color: var(--teal);
+      font-weight: 600;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(6, 8, 11, .6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      padding: 20px;
+    }
+
+    .modal-box {
+      background: linear-gradient(180deg, var(--bg-elev) 0%, var(--bg-elev2) 100%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px 20px;
+      width: 100%;
+      max-width: 320px;
+      text-align: center;
+    }
+
+    .modal-msg {
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.6;
+      margin-bottom: 18px;
+      white-space: pre-wrap;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .modal-actions button {
+      flex: 1;
+      padding: 12px 8px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .modal-btn-cancel {
+      background: var(--bg-elev2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+
+    .modal-btn-danger {
+      background: var(--danger);
+      color: #2a0f0c;
+    }
+
+    .modal-btn-ok {
+      background: var(--teal);
+      color: #08201d;
+    }
   </style>
 </head>
 
@@ -605,6 +684,13 @@
     <div class="timeline" id="recordDetailTimeline"></div>
   </div>
 
+  <div class="modal-overlay" id="modalOverlay" style="display:none;">
+    <div class="modal-box">
+      <div class="modal-msg" id="modalMsg"></div>
+      <div class="modal-actions" id="modalActions"></div>
+    </div>
+  </div>
+
   <script>
     (function () {
       "use strict";
@@ -634,6 +720,42 @@
       const resultsSection = $("resultsSection");
 
       $("todayLabel").textContent = new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" });
+
+      // ---------- カスタムダイアログ（ホーム画面追加のアプリ表示では window.confirm/alert が反応しないことがあるため自前実装） ----------
+      const modalOverlay = $("modalOverlay"), modalMsg = $("modalMsg"), modalActions = $("modalActions");
+      function closeModal() { modalOverlay.style.display = "none"; modalActions.innerHTML = ""; }
+      function showConfirm(message, okLabel, danger) {
+        return new Promise(resolve => {
+          modalMsg.textContent = message;
+          modalActions.innerHTML = "";
+          const btnCancel = document.createElement("button");
+          btnCancel.className = "modal-btn-cancel";
+          btnCancel.textContent = "キャンセル";
+          btnCancel.addEventListener("click", () => { closeModal(); resolve(false); });
+          const btnOk = document.createElement("button");
+          btnOk.className = danger ? "modal-btn-danger" : "modal-btn-ok";
+          btnOk.textContent = okLabel || "OK";
+          btnOk.addEventListener("click", () => { closeModal(); resolve(true); });
+          modalActions.appendChild(btnCancel);
+          modalActions.appendChild(btnOk);
+          modalOverlay.style.display = "flex";
+        });
+      }
+      function showAlert(message) {
+        return new Promise(resolve => {
+          modalMsg.textContent = message;
+          modalActions.innerHTML = "";
+          const btnOk = document.createElement("button");
+          btnOk.className = "modal-btn-ok";
+          btnOk.textContent = "OK";
+          btnOk.addEventListener("click", () => { closeModal(); resolve(); });
+          modalActions.appendChild(btnOk);
+          modalOverlay.style.display = "flex";
+        });
+      }
+      modalOverlay.addEventListener("click", e => {
+        if (e.target === modalOverlay) { /* 誤タップでの閉じは無効（削除など誤操作防止） */ }
+      });
 
       // ---------- 画面切り替え ----------
       const RECORDS_KEY = "nippo_records_v1";
@@ -682,9 +804,13 @@
           div.className = "record-item";
           const dateLabel = new Date(rec.workStart).toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" });
           const workDur = fmtDuration((rec.workEnd || Date.now()) - rec.workStart);
+          const timeRange = `${fmtClockKanji(rec.workStart)}〜${fmtClockKanji(rec.workEnd || Date.now())}`;
           div.innerHTML = `
         <div>
-          <div class="rd-date mono">${dateLabel}</div>
+          <div class="rd-toprow">
+            <span class="rd-date mono">${dateLabel}</span>
+            <span class="rd-time mono">${timeRange}</span>
+          </div>
           <div class="rd-sub">業務時間 ${workDur}｜走行区間 ${rec.legs.length}件</div>
         </div>
         <div class="rd-arrow">›</div>
@@ -722,7 +848,7 @@
         rec.legs.forEach(l => { full = full.concat(l.path); });
         const link = routeLink(full);
         if (link) window.open(link, "_blank");
-        else alert("表示できる経路がありません。");
+        else showAlert("表示できる経路がありません。");
       });
 
       $("btnRecordCsv").addEventListener("click", () => {
@@ -731,8 +857,9 @@
         exportCsvGeneric(rec.legs, rec.waits, new Date(rec.workStart));
       });
 
-      $("btnRecordDelete").addEventListener("click", () => {
-        if (!confirm("この記録を削除しますか？")) return;
+      $("btnRecordDelete").addEventListener("click", async () => {
+        const ok = await showConfirm("この記録を削除しますか？\nこの操作は取り消せません。", "削除する", true);
+        if (!ok) return;
         const recs = loadRecords().filter(r => r.id !== currentRecordId);
         saveRecordsToStorage(recs);
         renderRecordList();
@@ -740,6 +867,7 @@
       });
 
       function resetForNewShift() {
+        releaseWakeLock();
         state = "idle";
         workStart = null; workEnd = null;
         legs = []; waits = [];
@@ -766,6 +894,10 @@
       function fmtClock(ms) {
         const d = new Date(ms);
         return d.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+      }
+      function fmtClockKanji(ms) {
+        const d = new Date(ms);
+        return `${d.getHours()}時${String(d.getMinutes()).padStart(2, "0")}分`;
       }
       function fmtHMS(ms) {
         ms = Math.max(0, ms);
@@ -821,6 +953,7 @@
       }
 
       function tick() {
+        checkArrivalTimeout(); // 毎秒、GPS更新の有無に関わらず5分経過をチェック
         const now = Date.now();
         if (state === "moving") {
           setStatus("moving", "走行中（区間 " + (legs.length + 1) + "）");
@@ -843,6 +976,41 @@
       setInterval(tick, TICK_MS);
       tick();
 
+      // ---------- バックグラウンド復帰時の取りこぼし対策 ----------
+      // スマホのブラウザ／ホーム画面アプリは、画面ロックやアプリ切替中はJSタイマーやGPSコールバックが
+      // 実質停止することがある（OS側の省電力制御）。これは純粋なWebアプリでは完全には防げないが、
+      // 復帰した瞬間に必ず checkArrivalTimeout() を実行することで、実際に停止し始めた時刻(anchorTime)を
+      // 使って正しく「到着」を確定できるようにする（表示上「走行中のまま」固まるのを防ぐ）。
+      function onForegroundReturn() {
+        checkArrivalTimeout();
+        tick();
+      }
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") onForegroundReturn();
+      });
+      window.addEventListener("focus", onForegroundReturn);
+      window.addEventListener("pageshow", onForegroundReturn);
+
+      // ---------- Wake Lock（対応端末のみ）----------
+      // 画面がスリープするとブラウザのタイマー／GPSが止まりやすくなるため、
+      // 乗務中はできる範囲で画面スリープを防止する（未対応環境では何もしない）。
+      let wakeLock = null;
+      async function requestWakeLockIfPossible() {
+        try {
+          if ("wakeLock" in navigator && (state === "moving" || state === "waiting")) {
+            wakeLock = await navigator.wakeLock.request("screen");
+          }
+        } catch (e) { /* 非対応・許可エラーは無視 */ }
+      }
+      function releaseWakeLock() {
+        if (wakeLock) { wakeLock.release().catch(() => { }); wakeLock = null; }
+      }
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && (state === "moving" || state === "waiting")) {
+          requestWakeLockIfPossible();
+        }
+      });
+
       function refreshButtons() {
         btnStart.disabled = state !== "idle";
         btnDepart.disabled = state !== "moving";
@@ -850,6 +1018,18 @@
       }
 
       // ---------- GPSコールバック ----------
+      // 「5分停止で到着」の判定は、GPSの新しい測位が来た瞬間にしか行われないと、
+      // 停車中に測位が来ない（間引かれる／バックグラウンドで止まる）場合に永遠に「走行中」のままになる。
+      // そのため判定ロジックを checkArrivalTimeout() として独立させ、GPSコールバックだけでなく
+      // 毎秒のtick()や、アプリがフォアグラウンドに戻った瞬間にも壁時計（Date.now()）で判定できるようにする。
+      // 到着時刻・待機開始時刻には常に「実際に停止し始めた時刻」= anchorTime を使う（判定が実行された時刻ではない）。
+      function checkArrivalTimeout() {
+        if (state !== "moving" || !anchorPoint) return;
+        if (Date.now() - anchorTime >= STILL_MS) {
+          arriveAt(anchorPoint, anchorTime);
+        }
+      }
+
       function onPosition(pos) {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, t: Date.now() };
         if (pos.coords.accuracy && pos.coords.accuracy > 100) return; // 精度が悪い測位は無視
@@ -860,8 +1040,9 @@
           const d = distanceMeters(anchorPoint, p);
           if (d > STILL_METERS) {
             anchorPoint = p; anchorTime = p.t; // 動いている間はアンカーを更新し続ける
-          } else if (p.t - anchorTime >= STILL_MS) {
-            arriveAt(anchorPoint, anchorTime);
+          } else {
+            // 測位は来たが動いていない → 念のためここでも壁時計で判定（取りこぼし防止）
+            checkArrivalTimeout();
           }
         } else if (state === "waiting") {
           const d = distanceMeters(waitPoint, p);
@@ -915,6 +1096,7 @@
           state = "moving";
           refreshButtons();
           startWatch();
+          requestWakeLockIfPossible();
         }, onPositionError, { enableHighAccuracy: true, timeout: 20000 });
       });
 
@@ -943,6 +1125,7 @@
           workEnd = Date.now();
           state = "ended";
           stopWatch();
+          releaseWakeLock();
           refreshButtons();
           renderResults();
           resultsSection.style.display = "block";
@@ -962,7 +1145,7 @@
       $("btnAllRoute").addEventListener("click", () => {
         const link = allRouteLink();
         if (link) window.open(link, "_blank");
-        else alert("表示できる経路がまだありません。");
+        else showAlert("表示できる経路がまだありません。");
       });
 
       $("btnCsv").addEventListener("click", exportCsv);
@@ -1089,4 +1272,4 @@
   </script>
 </body>
 
-</html>
+</html>
