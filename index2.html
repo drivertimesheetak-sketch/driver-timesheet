@@ -9,7 +9,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="日報サポート">
-  <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22%E6%97%A5%E5%A0%B1%E3%82%B5%E3%83%9D%E3%83%BC%E3%83%88%22%2C%22short_name%22%3A%22%E6%97%A5%E5%A0%B1%22%2C%22start_url%22%3A%22.%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%2312151a%22%2C%22theme_color%22%3A%22%2312151a%22%7D">
+  <link rel="manifest"
+    href="data:application/manifest+json,%7B%22name%22%3A%22%E6%97%A5%E5%A0%B1%E3%82%B5%E3%83%9D%E3%83%BC%E3%83%88%22%2C%22short_name%22%3A%22%E6%97%A5%E5%A0%B1%22%2C%22start_url%22%3A%22.%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%2312151a%22%2C%22theme_color%22%3A%22%2312151a%22%7D">
   <title>日報サポート - 走行記録</title>
   <style>
     :root {
@@ -703,6 +704,10 @@
       // ---------- 状態 ----------
       let state = "idle"; // idle | moving | waiting | ended
       let watchId = null;
+      // 乗務開始／出発／業務終了はGPS取得が完了するまで数秒かかる非同期処理のため、
+      // 返答待ちの間にボタンを連打されると同じ操作が二重に実行され（例：記録が2件重複保存される）
+      // てしまう。このフラグでGPS応答待ちの間は同じ操作を受け付けないようにする。
+      let gpsActionBusy = false;
 
       let workStart = null, workEnd = null;
       let legs = [];   // {depPoint, depTime, arrPoint, arrTime, path:[{lat,lng,t}]}
@@ -913,6 +918,7 @@
       function resetForNewShift() {
         releaseWakeLock();
         clearInProgress();
+        gpsActionBusy = false;
         state = "idle";
         workStart = null; workEnd = null;
         legs = []; waits = [];
@@ -1153,8 +1159,10 @@
       }
 
       btnStart.addEventListener("click", () => {
-        if (state !== "idle") return;
+        if (state !== "idle" || gpsActionBusy) return;
+        gpsActionBusy = true;
         navigator.geolocation.getCurrentPosition(pos => {
+          gpsActionBusy = false;
           const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, t: Date.now() };
           workStart = p.t;
           curLegDep = p; curLegDepTime = p.t; curLegPath = [p];
@@ -1164,12 +1172,14 @@
           startWatch();
           requestWakeLockIfPossible();
           saveInProgress();
-        }, onPositionError, { enableHighAccuracy: true, timeout: 20000 });
+        }, err => { gpsActionBusy = false; onPositionError(err); }, { enableHighAccuracy: true, timeout: 20000 });
       });
 
       btnDepart.addEventListener("click", () => {
-        if (state !== "moving") return;
+        if (state !== "moving" || gpsActionBusy) return;
+        gpsActionBusy = true;
         navigator.geolocation.getCurrentPosition(pos => {
+          gpsActionBusy = false;
           const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, t: Date.now() };
           curLegPath.push(p);
           legs.push({ depPoint: curLegDep, depTime: curLegDepTime, arrPoint: p, arrTime: p.t, path: curLegPath.slice() });
@@ -1177,12 +1187,16 @@
           anchorPoint = p; anchorTime = p.t;
           // stateはmovingのまま（待機を挟まない強制区切り）
           saveInProgress();
-        }, onPositionError, { enableHighAccuracy: true, timeout: 20000 });
+        }, err => { gpsActionBusy = false; onPositionError(err); }, { enableHighAccuracy: true, timeout: 20000 });
       });
 
       btnEnd.addEventListener("click", () => {
-        if (!(state === "moving" || state === "waiting")) return;
+        if (!(state === "moving" || state === "waiting") || gpsActionBusy) return;
+        gpsActionBusy = true;
         const finish = (p) => {
+          // GPS応答待ちの間に連打されても、状態は既に「ended」に変わっているため、
+          // 二重に finish() が呼ばれて記録が重複保存されるのを防ぐ。
+          if (state !== "moving" && state !== "waiting") { gpsActionBusy = false; return; }
           if (state === "moving") {
             if (p) curLegPath.push(p);
             const last = p || curLegPath[curLegPath.length - 1] || curLegDep;
@@ -1200,6 +1214,7 @@
           resultsSection.style.display = "block";
           saveCurrentRecord();
           $("btnNewShift").style.display = "inline-block";
+          gpsActionBusy = false;
         };
         navigator.geolocation.getCurrentPosition(pos => {
           finish({ lat: pos.coords.latitude, lng: pos.coords.longitude, t: Date.now() });
@@ -1356,4 +1371,4 @@
   </script>
 </body>
 
-</html>
+</html>
