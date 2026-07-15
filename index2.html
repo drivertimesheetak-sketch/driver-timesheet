@@ -791,6 +791,50 @@
         saveRecordsToStorage(recs);
       }
 
+      // ---------- 進行中の記録の永続化（バックグラウンド終了・強制終了対策） ----------
+      // スマホのOS／ブラウザは、画面ロックや長時間のバックグラウンド化でタブやアプリの
+      // プロセスごと終了させることがある（メモリ上の変数はJSタイマーやGPSコールバックごと消える）。
+      // これはWebアプリの仕組み上、完全には防止できない（ネイティブアプリのような
+      // バックグラウンド常駐は不可能）。そのため「止めない」のではなく「止まっても失わない・
+      // 正しく復元する」方針で対策する：進行中の状態をこまめにlocalStorageへ保存しておき、
+      // 次にアプリが開かれた瞬間（=生きているタイミング）に、保存時刻や壁時計をもとに
+      // 状態を復元し、5分停止ルールも遡って正しく判定する。
+      const INPROGRESS_KEY = "nippo_inprogress_v1";
+      function saveInProgress() {
+        try {
+          if (state === "moving" || state === "waiting") {
+            localStorage.setItem(INPROGRESS_KEY, JSON.stringify({
+              state, workStart, legs, waits,
+              curLegDep, curLegDepTime, curLegPath,
+              anchorPoint, anchorTime,
+              waitPoint, waitStart,
+              savedAt: Date.now()
+            }));
+          } else {
+            localStorage.removeItem(INPROGRESS_KEY);
+          }
+        } catch (e) { /* 保存失敗（容量超過等）は無視。次回機会に再試行される */ }
+      }
+      function clearInProgress() {
+        try { localStorage.removeItem(INPROGRESS_KEY); } catch (e) { /* ignore */ }
+      }
+      function loadInProgress() {
+        try { return JSON.parse(localStorage.getItem(INPROGRESS_KEY)); }
+        catch (e) { return null; }
+      }
+      function restoreInProgress() {
+        const data = loadInProgress();
+        if (!data || (data.state !== "moving" && data.state !== "waiting")) return false;
+        state = data.state;
+        workStart = data.workStart;
+        legs = data.legs || [];
+        waits = data.waits || [];
+        curLegDep = data.curLegDep; curLegDepTime = data.curLegDepTime; curLegPath = data.curLegPath || [];
+        anchorPoint = data.anchorPoint; anchorTime = data.anchorTime;
+        waitPoint = data.waitPoint; waitStart = data.waitStart;
+        return true;
+      }
+
       function renderRecordList() {
         const recs = loadRecords().slice().sort((a, b) => b.id - a.id);
         const container = $("recordListContainer");
@@ -868,6 +912,7 @@
 
       function resetForNewShift() {
         releaseWakeLock();
+        clearInProgress();
         state = "idle";
         workStart = null; workEnd = null;
         legs = []; waits = [];
@@ -952,9 +997,15 @@
         bigTimer.className = "big-timer mono" + (kind === "moving" ? " moving" : kind === "waiting" ? " waiting" : "");
       }
 
+      let lastPeriodicSave = 0;
       function tick() {
         checkArrivalTimeout(); // 毎秒、GPS更新の有無に関わらず5分経過をチェック
         const now = Date.now();
+        if ((state === "moving" || state === "waiting") && now - lastPeriodicSave > 15000) {
+          // GPS更新が来ない間も定期的に保存しておく（強制終了・タブ破棄への保険）
+          saveInProgress();
+          lastPeriodicSave = now;
+        }
         if (state === "moving") {
           setStatus("moving", "走行中（区間 " + (legs.length + 1) + "）");
           bigTimer.textContent = fmtHMS(now - curLegDepTime);
@@ -987,9 +1038,14 @@
       }
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "visible") onForegroundReturn();
+        else saveInProgress(); // バックグラウンドへ移る瞬間に最新状態を保存しておく
       });
       window.addEventListener("focus", onForegroundReturn);
       window.addEventListener("pageshow", onForegroundReturn);
+      // pagehide／beforeunloadはタブ破棄・強制終了の直前に呼ばれる可能性があるため、
+      // 最後のチャンスとして保存を試みる（OSによっては呼ばれずに終了することもある）
+      window.addEventListener("pagehide", saveInProgress);
+      window.addEventListener("beforeunload", saveInProgress);
 
       // ---------- Wake Lock（対応端末のみ）----------
       // 画面がスリープするとブラウザのタイマー／GPSが止まりやすくなるため、
@@ -999,6 +1055,13 @@
         try {
           if ("wakeLock" in navigator && (state === "moving" || state === "waiting")) {
             wakeLock = await navigator.wakeLock.request("screen");
+            // 一部の環境ではOS側の判断でWake Lockが解除されることがある。
+            // 乗務中であれば、画面が表示されているタイミングで再取得を試みる。
+            wakeLock.addEventListener("release", () => {
+              if (document.visibilityState === "visible" && (state === "moving" || state === "waiting")) {
+                requestWakeLockIfPossible();
+              }
+            });
           }
         } catch (e) { /* 非対応・許可エラーは無視 */ }
       }
@@ -1036,7 +1099,7 @@
 
         if (state === "moving") {
           curLegPath.push(p);
-          if (!anchorPoint) { anchorPoint = p; anchorTime = p.t; return; }
+          if (!anchorPoint) { anchorPoint = p; anchorTime = p.t; saveInProgress(); return; }
           const d = distanceMeters(anchorPoint, p);
           if (d > STILL_METERS) {
             anchorPoint = p; anchorTime = p.t; // 動いている間はアンカーを更新し続ける
@@ -1044,6 +1107,7 @@
             // 測位は来たが動いていない → 念のためここでも壁時計で判定（取りこぼし防止）
             checkArrivalTimeout();
           }
+          saveInProgress();
         } else if (state === "waiting") {
           const d = distanceMeters(waitPoint, p);
           if (d > STILL_METERS) {
@@ -1065,7 +1129,7 @@
         watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
           enableHighAccuracy: true, maximumAge: 0, timeout: 20000
         });
-        gpsNotice.textContent = "GPS記録中です。画面を閉じると記録が止まる場合があります。";
+        gpsNotice.textContent = "GPS記録中です。長時間画面をロックすると記録が一時停止することがありますが、次にこの画面を開いた時点で自動的に復元・補正されます。";
       }
       function stopWatch() {
         if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
@@ -1077,6 +1141,7 @@
         state = "waiting";
         waitPoint = point; waitStart = time;
         refreshButtons();
+        saveInProgress();
       }
       function departFromWaiting(p) {
         waits.push({ point: waitPoint, startTime: waitStart, endTime: p.t });
@@ -1084,6 +1149,7 @@
         anchorPoint = p; anchorTime = p.t;
         state = "moving";
         refreshButtons();
+        saveInProgress();
       }
 
       btnStart.addEventListener("click", () => {
@@ -1097,6 +1163,7 @@
           refreshButtons();
           startWatch();
           requestWakeLockIfPossible();
+          saveInProgress();
         }, onPositionError, { enableHighAccuracy: true, timeout: 20000 });
       });
 
@@ -1109,6 +1176,7 @@
           curLegDep = p; curLegDepTime = p.t; curLegPath = [p];
           anchorPoint = p; anchorTime = p.t;
           // stateはmovingのまま（待機を挟まない強制区切り）
+          saveInProgress();
         }, onPositionError, { enableHighAccuracy: true, timeout: 20000 });
       });
 
@@ -1126,6 +1194,7 @@
           state = "ended";
           stopWatch();
           releaseWakeLock();
+          clearInProgress();
           refreshButtons();
           renderResults();
           resultsSection.style.display = "block";
@@ -1267,6 +1336,21 @@
       function exportCsv() {
         exportCsvGeneric(legs, waits, new Date());
       }
+
+      // ---------- 起動時：進行中の記録があれば復元 ----------
+      // OSにタブ／アプリごと終了させられていた場合でも、次に開いた瞬間に
+      // localStorageから状態を復元し、壁時計で5分停止ルールを遡って判定する。
+      (function initRestore() {
+        if (!restoreInProgress()) return;
+        showScreen("ride");
+        checkArrivalTimeout(); // 離脱していた間に5分以上停止していれば、ここで到着扱いにする
+        refreshButtons();
+        renderResults();
+        resultsSection.style.display = "block";
+        startWatch();
+        requestWakeLockIfPossible();
+        gpsNotice.textContent = "前回の記録を復元しました。GPS記録を再開します。";
+      })();
 
     })();
   </script>
