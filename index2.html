@@ -700,6 +700,7 @@
       const STILL_METERS = 30;          // これ未満の移動は「停止」とみなす誤差
       const STILL_MS = 5 * 60 * 1000;       // 5分停止で到着とみなす
       const TICK_MS = 1000;
+      const GAP_WARN_MS = 3 * 60 * 1000;    // 復帰時、これ以上の空白があれば注意喚起を表示
 
       // ---------- 状態 ----------
       let state = "idle"; // idle | moving | waiting | ended
@@ -1041,6 +1042,44 @@
       function onForegroundReturn() {
         checkArrivalTimeout();
         tick();
+        handleResumeFix();
+      }
+
+      // ---------- スリープ・バックグラウンド復帰時の即時補正 ----------
+      // スリープ中はwatchPositionのコールバックが発火しないため、「待機中に動き出した」
+      // 判定は次にGPSが更新されるまで検出できない（=復帰するまで待機のまま固まる）。
+      // また一部のAndroid端末では、長時間のスリープ後にwatchPositionが停止したまま
+      // 再開しないことがある。そこで画面が復帰した瞬間に
+      //  ①その場でgetCurrentPositionを1回呼び、通常のGPSコールバックと同じロジックで
+      //    即座に反映する（＝次の定期更新を待たずに「走行再開」「到着」を確定させる）
+      //  ②watchPositionを念のため一度止めて張り直す
+      // という2点を行うことで、実用上ほぼ取りこぼしのないレベルまで改善する。
+      // ただし画面が完全にロックされている間は、OSがブラウザのJS実行そのものを
+      // 一時停止させるため、スリープ中の経路（訪問先の間の道のり）自体は記録できない。
+      // このアプリが行えるのはあくまで「復帰した瞬間に正しい状態へ即座に補正する」ことまでで、
+      // ネイティブアプリのような完全なバックグラウンド追跡はWebアプリの技術的制約上不可能。
+      let resumeFixBusy = false;
+      function handleResumeFix() {
+        if (!(state === "moving" || state === "waiting") || resumeFixBusy) return;
+        resumeFixBusy = true;
+        const gapStart = state === "moving" ? anchorTime : waitStart;
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            resumeFixBusy = false;
+            const gapMs = gapStart ? Date.now() - gapStart : 0;
+            onPosition(pos); // 通常のGPS更新と全く同じロジックで即座に判定・反映する
+            if (gapMs > GAP_WARN_MS && (state === "moving" || state === "waiting")) {
+              gpsNotice.classList.remove("err");
+              gpsNotice.textContent = `復帰しました（前回の更新から約${Math.round(gapMs / 60000)}分経過）。スリープ中の詳細な経路は記録できていない場合があります。`;
+            }
+          },
+          () => { resumeFixBusy = false; /* 取得失敗時は次のwatchPositionに任せる */ },
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+        );
+        // 長時間のスリープ後、端末によってはwatchPositionが停止したまま復帰しないことがあるため
+        // 念のため張り直す（実行中の位置取得には影響しない）
+        stopWatch();
+        startWatch();
       }
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "visible") onForegroundReturn();
@@ -1362,9 +1401,9 @@
         refreshButtons();
         renderResults();
         resultsSection.style.display = "block";
-        startWatch();
         requestWakeLockIfPossible();
         gpsNotice.textContent = "前回の記録を復元しました。GPS記録を再開します。";
+        handleResumeFix(); // 起動直後に最新位置を取得し、watchPositionも張り直す
       })();
 
     })();
