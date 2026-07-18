@@ -4,6 +4,7 @@
 
 
 
+
 <!DOCTYPE html>
 <html lang="ja">
 
@@ -90,7 +91,7 @@
             MapPin, Train, LayoutList, LayoutGrid, HardHat, Settings, Palmtree,
             Smile, Sparkles, Loader2, Bot, Truck, Plus, Minus, ChevronDown,
             ChevronUp, Palette, Stethoscope, Receipt, AlertCircle, Coins, Download, Upload,
-            Maximize, Minimize, Info, Lock, Delete, RotateCcw, GripVertical, Navigation
+            Maximize, Minimize, Info, Lock, Delete, RotateCcw, GripVertical, Navigation, Search
         } from 'lucide-react';
 
         // アニメーション用のスタイルを追加
@@ -607,6 +608,10 @@
             const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
             const [isVehicleSettingsOpen, setIsVehicleSettingsOpen] = useState(false);
             const [isVehicleSummaryOpen, setIsVehicleSummaryOpen] = useState(false);
+            const [isVehicleSearchOpen, setIsVehicleSearchOpen] = useState(false);
+            const [vehicleSearchStep, setVehicleSearchStep] = useState('select'); // 'select' | 'results'
+            const [vehicleSearchQuery, setVehicleSearchQuery] = useState('');
+            const [cameFromVehicleSearch, setCameFromVehicleSearch] = useState(false);
             const [isWorkTypeSummaryOpen, setIsWorkTypeSummaryOpen] = useState(false);
             // 設定変更モーダル
             const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
@@ -890,7 +895,7 @@
             // --- Effects (Persistence) ---
             useEffect(() => {
                 const hasOpenModal = isModalOpen || isSummaryModalOpen || isVehicleSettingsOpen ||
-                    isConfigModalOpen || isWelcomeModalOpen || isDatePickerOpen ||
+                    isConfigModalOpen || isWelcomeModalOpen || isDatePickerOpen || isVehicleSearchOpen ||
                     !!dateToDelete || !!deleteConfirmation || isBulkInputModalOpen;
 
                 if (hasOpenModal) {
@@ -901,7 +906,7 @@
                 return () => {
                     document.body.style.overflow = '';
                 };
-            }, [isModalOpen, isSummaryModalOpen, isVehicleSettingsOpen, isConfigModalOpen, isWelcomeModalOpen, isDatePickerOpen, dateToDelete, deleteConfirmation]);
+            }, [isModalOpen, isSummaryModalOpen, isVehicleSettingsOpen, isConfigModalOpen, isWelcomeModalOpen, isDatePickerOpen, isVehicleSearchOpen, dateToDelete, deleteConfirmation]);
 
             useEffect(() => {
                 // データ読み込み処理
@@ -1177,6 +1182,51 @@
                     });
                 }
                 setIsModalOpen(true);
+            };
+
+            // --- 車種別 乗車日検索 ---
+            const openVehicleSearch = () => {
+                setVehicleSearchStep('select');
+                setVehicleSearchQuery('');
+                setIsVehicleSearchOpen(true);
+            };
+
+            const handleVehicleSearchSelect = (vehicleName) => {
+                setVehicleSearchQuery(vehicleName);
+                setVehicleSearchStep('results');
+            };
+
+            const vehicleSearchResults = useMemo(() => {
+                if (!vehicleSearchQuery) return [];
+                const grouped = {};
+                Object.keys(workData).forEach(dateKey => {
+                    const entry = workData[dateKey];
+                    if (entry && Array.isArray(entry.vehicles) && entry.vehicles.includes(vehicleSearchQuery)) {
+                        const year = dateKey.split('-')[0];
+                        if (!grouped[year]) grouped[year] = [];
+                        grouped[year].push(dateKey);
+                    }
+                });
+                return Object.keys(grouped)
+                    .sort((a, b) => Number(b) - Number(a))
+                    .map(year => ({
+                        year,
+                        dates: grouped[year].sort((a, b) => (a < b ? 1 : -1)),
+                    }));
+            }, [workData, vehicleSearchQuery]);
+
+            const handleSearchResultDateClick = (dateKey) => {
+                const [y, m, d] = dateKey.split('-').map(Number);
+                setIsVehicleSearchOpen(false);
+                setCameFromVehicleSearch(true);
+                handleDateClick(new Date(y, m - 1, d));
+            };
+
+            const returnToVehicleSearchResults = () => {
+                setIsModalOpen(false);
+                setCameFromVehicleSearch(false);
+                setVehicleSearchStep('results');
+                setIsVehicleSearchOpen(true);
             };
 
             const handleSave = () => {
@@ -2969,6 +3019,15 @@
                             {/* 表示モード切替 */}
                             <div className="flex rounded-lg p-0.5 relative shrink-0">
 
+                                {/* 車種別 乗車日検索ボタン */}
+                                <button
+                                    onClick={openVehicleSearch}
+                                    className={`p-2 rounded-full transition-all hover:bg-slate-100 ${isVehicleSearchOpen ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'}`}
+                                    title="車種別 乗車日検索"
+                                >
+                                    <Search size={22} strokeWidth={2} />
+                                </button>
+
                                 {/* Config Button (New) */}
                                 <button
                                     onClick={openConfigModal}
@@ -3107,6 +3166,101 @@
                         </div>
                     </div>
 
+                    {/* 車種別 乗車日検索モーダル */}
+                    {isVehicleSearchOpen && (
+                        <div className="fixed inset-0 bg-slate-900/50 z-[1150] flex items-end sm:items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
+                            <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
+                                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                    <h3 className="font-bold text-lg flex items-center gap-2 text-slate-700">
+                                        {vehicleSearchStep === 'results' && (
+                                            <button
+                                                onClick={() => setVehicleSearchStep('select')}
+                                                className="p-1 -ml-1 rounded-full hover:bg-slate-200 text-slate-500"
+                                            >
+                                                <ChevronLeft size={20} />
+                                            </button>
+                                        )}
+                                        <Search size={20} className="text-indigo-600" />
+                                        {vehicleSearchStep === 'select' ? '車種別 乗車日検索' : `${vehicleSearchQuery} の乗車日`}
+                                    </h3>
+                                    <button
+                                        onClick={() => setIsVehicleSearchOpen(false)}
+                                        className="p-1 rounded-full hover:bg-slate-200"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                </div>
+
+                                <div className="p-4 overflow-y-auto">
+                                    {vehicleSearchStep === 'select' ? (
+                                        <div className="space-y-4">
+                                            <p className="text-xs text-slate-400">
+                                                車種を選択すると、その車両に乗車した日付の一覧（年別）を表示します。
+                                            </p>
+                                            <select
+                                                className="w-full border-0 bg-slate-100 rounded-xl px-3 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                                value=""
+                                                onChange={(e) => {
+                                                    if (e.target.value) handleVehicleSearchSelect(e.target.value);
+                                                }}
+                                            >
+                                                <option value="" disabled>車種を選択してください...</option>
+                                                {Object.entries(vehicleMaster).map(([category, items]) => (
+                                                    items.length > 0 && (
+                                                        <optgroup key={category} label={category}>
+                                                            {items.map(item => (
+                                                                <option key={item} value={item}>{item}</option>
+                                                            ))}
+                                                        </optgroup>
+                                                    )
+                                                ))}
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-5">
+                                            {vehicleSearchResults.length === 0 && (
+                                                <p className="text-sm text-slate-400 text-center py-8">
+                                                    この車種の乗車記録は見つかりませんでした。
+                                                </p>
+                                            )}
+                                            {vehicleSearchResults.map(({ year, dates }) => (
+                                                <div key={year}>
+                                                    <h4 className="font-bold text-sm text-slate-500 mb-2 flex items-center gap-2">
+                                                        {year}年
+                                                        <span className="text-xs font-normal text-slate-300">({dates.length}日)</span>
+                                                    </h4>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        {dates.map(dateKey => {
+                                                            const [y, m, d] = dateKey.split('-').map(Number);
+                                                            const dow = new Date(y, m - 1, d).getDay();
+                                                            const dowNames = ['日', '月', '火', '水', '木', '金', '土'];
+                                                            const { isHoliday } = getHolidayInfo(y, m, d);
+                                                            return (
+                                                                <button
+                                                                    key={dateKey}
+                                                                    onClick={() => handleSearchResultDateClick(dateKey)}
+                                                                    className="bg-white border border-slate-200 rounded-xl px-2 py-2 flex flex-col items-center shadow-sm hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+                                                                >
+                                                                    <span className="text-sm font-bold text-slate-700">{m}/{d}</span>
+                                                                    <span className={`text-[10px] font-bold ${getDayColor(dow, isHoliday)}`}>({dowNames[dow]})</span>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="p-3 bg-slate-50 border-t border-slate-100 text-center" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
+                                    <button onClick={() => setIsVehicleSearchOpen(false)} className="bg-white border border-slate-200 text-sm font-bold px-6 py-2.5 rounded-xl shadow-sm hover:bg-slate-50">
+                                        閉じる
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Input Modal */}
                     {isModalOpen && (
                         <div className="fixed inset-0 bg-slate-900/40 z-[1000] flex items-end sm:items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
@@ -3124,9 +3278,20 @@
                                             );
                                         })()}
                                     </h3>
-                                    <button onClick={() => setIsModalOpen(false)} className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors text-slate-500">
-                                        <X size={20} />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        {cameFromVehicleSearch && (
+                                            <button
+                                                onClick={returnToVehicleSearchResults}
+                                                className="flex items-center gap-1 px-3 py-2 rounded-full bg-indigo-50 hover:bg-indigo-100 transition-colors text-indigo-600 text-xs font-bold"
+                                            >
+                                                <ChevronLeft size={16} />
+                                                検索結果に戻る
+                                            </button>
+                                        )}
+                                        <button onClick={() => { setIsModalOpen(false); setCameFromVehicleSearch(false); }} className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors text-slate-500">
+                                            <X size={20} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="p-5 overflow-y-auto space-y-6 bg-white">
