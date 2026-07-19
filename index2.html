@@ -661,6 +661,7 @@
       <div class="result-actions">
         <button class="btn-route" id="btnAllRoute">🗺 全経路を表示</button>
         <button class="btn-ghost" id="btnCsv">CSV出力</button>
+        <button class="btn-ghost" id="btnImportGpsLog">📥 外部GPSログ取込</button>
         <button class="btn-ghost" id="btnNewShift" style="display:none;">🔄 新しい記録を開始</button>
       </div>
       <div class="timeline" id="timeline"></div>
@@ -680,10 +681,14 @@
     <div class="result-actions">
       <button class="btn-route" id="btnRecordAllRoute">🗺 全経路を表示</button>
       <button class="btn-ghost" id="btnRecordCsv">CSV出力</button>
+      <button class="btn-ghost" id="btnRecordImportGpsLog">📥 外部GPSログ取込</button>
       <button class="btn-ghost" id="btnRecordDelete">🗑 この記録を削除</button>
     </div>
     <div class="timeline" id="recordDetailTimeline"></div>
   </div>
+
+  <input type="file" id="gpsLogFileInput"
+    accept=".csv,.gpx,.json,.geojson,text/csv,application/json,application/gpx+xml" style="display:none">
 
   <div class="modal-overlay" id="modalOverlay" style="display:none;">
     <div class="modal-box">
@@ -1389,6 +1394,246 @@
       }
       function exportCsv() {
         exportCsvGeneric(legs, waits, new Date());
+      }
+
+      // ---------- 外部GPSログの取込（スリープ中の経路欠落を補完） ----------
+      // このアプリ自身の走行・待機の「判定」（何時に到着したか等）は変更せず、
+      // 既に確定している各走行区間（leg）の depTime〜arrTime の範囲に該当する地点だけを
+      // 経路（path）に追加する。取り込んだファイルが対応する外部ロガーの例：
+      //   ・Android: GPSLogger for Android（CSV/GPXエクスポート）、Geo Tracker 等
+      //   ・iOS: Overland（GeoJSONでエクスポート／CSVではない点に注意）、GPX Tracker、Geo Tracker 等
+      // ファイルの中身（拡張子とテキストの先頭）から形式を自動判別するため、
+      // 上記に限らずCSV／GPX／GeoJSONであれば概ね取り込める。
+      const gpsLogFileInput = $("gpsLogFileInput");
+      let gpsImportTarget = null; // "current" または {recordId}
+
+      $("btnImportGpsLog").addEventListener("click", () => {
+        if (!(state === "moving" || state === "waiting" || state === "ended")) {
+          showAlert("取込先の走行記録がありません。乗務を開始してから行ってください。");
+          return;
+        }
+        gpsImportTarget = "current";
+        gpsLogFileInput.value = "";
+        gpsLogFileInput.click();
+      });
+      $("btnRecordImportGpsLog").addEventListener("click", () => {
+        if (currentRecordId == null) return;
+        gpsImportTarget = { recordId: currentRecordId };
+        gpsLogFileInput.value = "";
+        gpsLogFileInput.click();
+      });
+
+      gpsLogFileInput.addEventListener("change", () => {
+        const file = gpsLogFileInput.files && gpsLogFileInput.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const points = parseExternalGpsLog(String(reader.result), file.name);
+            if (!points.length) {
+              showAlert("ファイルから位置情報を読み取れませんでした。対応形式（CSV／GPX／GeoJSON）かご確認ください。");
+              return;
+            }
+            applyImportedGpsLog(points);
+          } catch (e) {
+            showAlert("取込に失敗しました：" + (e && e.message ? e.message : "不明なエラー"));
+          }
+        };
+        reader.onerror = () => showAlert("ファイルの読み込みに失敗しました。");
+        reader.readAsText(file, "utf-8");
+      });
+
+      function applyImportedGpsLog(points) {
+        if (gpsImportTarget === "current") {
+          const result = mergeGpsLogIntoLegs(legs, points);
+          if (state === "moving") {
+            // 進行中の区間にも該当する可能性があるため反映
+            const tempLeg = { depTime: curLegDepTime, arrTime: Date.now(), path: curLegPath };
+            const r2 = mergeGpsLogIntoLegs([tempLeg], points);
+            curLegPath = tempLeg.path; // マージ結果を実際の進行中パスへ反映
+            result.added += r2.added;
+          }
+          saveInProgress();
+          renderResults();
+          showAlert(importSummaryMessage(points.length, result));
+        } else if (gpsImportTarget && gpsImportTarget.recordId != null) {
+          const recs = loadRecords();
+          const rec = recs.find(r => r.id === gpsImportTarget.recordId);
+          if (!rec) { showAlert("対象の記録が見つかりませんでした。"); return; }
+          const result = mergeGpsLogIntoLegs(rec.legs, points);
+          saveRecordsToStorage(recs);
+          renderRecordDetail(rec);
+          showAlert(importSummaryMessage(points.length, result));
+        }
+        gpsImportTarget = null;
+      }
+
+      function importSummaryMessage(totalPoints, result) {
+        if (result.added === 0) {
+          return `読み込んだ${totalPoints}件の位置情報のうち、この記録の走行区間の時間帯に該当するものはありませんでした（待機時間中の点は経路には反映されません）。`;
+        }
+        return `読み込んだ${totalPoints}件の位置情報のうち、${result.added}件を該当する走行区間の経路に追加しました。`;
+      }
+
+      // 各leg（depTime〜arrTime）の時間範囲に収まる地点だけをpathへマージする。
+      // 既存の点と時間・距離が極めて近い点は重複とみなして追加しない。
+      function mergeGpsLogIntoLegs(legsArr, points, toleranceMs) {
+        toleranceMs = toleranceMs || 2000;
+        const valid = points.filter(p => Number.isFinite(p.t) && Number.isFinite(p.lat) && Number.isFinite(p.lng));
+        valid.sort((a, b) => a.t - b.t);
+        let added = 0;
+        legsArr.forEach(leg => {
+          if (!leg.depTime || !leg.arrTime || leg.arrTime <= leg.depTime) return;
+          const inRange = valid.filter(p => p.t >= leg.depTime - toleranceMs && p.t <= leg.arrTime + toleranceMs);
+          if (!inRange.length) return;
+          const merged = (leg.path || []).slice();
+          inRange.forEach(p => {
+            const isDup = merged.some(e => Math.abs((e.t || 0) - p.t) < 1500 && distanceMeters(e, p) < 5);
+            if (!isDup) { merged.push({ lat: p.lat, lng: p.lng, t: p.t }); added++; }
+          });
+          merged.sort((a, b) => a.t - b.t);
+          leg.path = merged;
+        });
+        return { added };
+      }
+
+      // ---------- 外部ファイルの解析（CSV／GPX／GeoJSON 自動判別） ----------
+      function parseExternalGpsLog(text, filename) {
+        const name = (filename || "").toLowerCase();
+        const trimmed = text.replace(/^\uFEFF/, "").trim();
+        if (name.endsWith(".gpx") || /^<\?xml/.test(trimmed) || /<gpx[\s>]/i.test(trimmed.slice(0, 200))) {
+          return parseGpxLog(trimmed);
+        }
+        if (name.endsWith(".geojson") || name.endsWith(".json") || trimmed.startsWith("{") || trimmed.startsWith("[")) {
+          return parseGeoJsonLog(trimmed);
+        }
+        return parseCsvLog(trimmed);
+      }
+
+      // CSV：ヘッダー名を柔軟に照合する（GPSLogger for Android など、アプリによって
+      // 列名・列順が異なるため、代表的な表記ゆれを候補として吸収する）。
+      function parseCsvLog(text) {
+        const lines = text.split(/\r\n|\n|\r/).filter(l => l.trim().length > 0);
+        if (lines.length < 2) return [];
+        const splitLine = line => {
+          // 簡易的なクォート対応CSVパーサ（フィールド内カンマ・ダブルクォートに対応）
+          const out = [];
+          let cur = "", inQ = false;
+          for (let i = 0; i < line.length; i++) {
+            const c = line[i];
+            if (inQ) {
+              if (c === '"') {
+                if (line[i + 1] === '"') { cur += '"'; i++; } else { inQ = false; }
+              } else cur += c;
+            } else {
+              if (c === '"') inQ = true;
+              else if (c === ",") { out.push(cur); cur = ""; }
+              else cur += c;
+            }
+          }
+          out.push(cur);
+          return out.map(s => s.trim());
+        };
+        const header = splitLine(lines[0]).map(h => h.toLowerCase().replace(/^"|"$/g, ""));
+        const findCol = candidates => {
+          for (const c of candidates) {
+            const i = header.indexOf(c);
+            if (i !== -1) return i;
+          }
+          for (const c of candidates) {
+            const i = header.findIndex(h => h.includes(c));
+            if (i !== -1) return i;
+          }
+          return -1;
+        };
+        const timeCol = findCol(["time", "datetime", "timestamp", "date", "utc", "fix_time", "recorded_at"]);
+        const latCol = findCol(["lat", "latitude"]);
+        const lngCol = findCol(["lon", "lng", "long", "longitude"]);
+        if (latCol === -1 || lngCol === -1 || timeCol === -1) {
+          throw new Error("CSVの列（時刻／緯度／経度）を認識できませんでした。");
+        }
+        const points = [];
+        for (let i = 1; i < lines.length; i++) {
+          const cols = splitLine(lines[i]);
+          if (cols.length <= Math.max(timeCol, latCol, lngCol)) continue;
+          const lat = parseFloat(cols[latCol]);
+          const lng = parseFloat(cols[lngCol]);
+          const t = parseTimeValue(cols[timeCol]);
+          if (Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(t)) {
+            points.push({ lat, lng, t });
+          }
+        }
+        return points;
+      }
+
+      // GPX：<trkpt lat lon> と 子要素 <time> を読む（多くのAndroid／iOSロガーの標準出力形式）
+      function parseGpxLog(text) {
+        const doc = new DOMParser().parseFromString(text, "application/xml");
+        if (doc.querySelector("parsererror")) throw new Error("GPXの解析に失敗しました。");
+        const pts = Array.from(doc.querySelectorAll("trkpt, wpt"));
+        const points = [];
+        pts.forEach(el => {
+          const lat = parseFloat(el.getAttribute("lat"));
+          const lng = parseFloat(el.getAttribute("lon"));
+          const timeEl = el.querySelector("time");
+          const t = timeEl ? parseTimeValue(timeEl.textContent) : NaN;
+          if (Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(t)) {
+            points.push({ lat, lng, t });
+          }
+        });
+        return points;
+      }
+
+      // GeoJSON：Overland（iOS）などが出力するFeatureCollection形式、または
+      // {latitude,longitude,timestamp}等のプレーンな配列の両方に対応する。
+      function parseGeoJsonLog(text) {
+        const data = JSON.parse(text);
+        const points = [];
+        const pushFromProps = (lng, lat, props) => {
+          props = props || {};
+          const timeVal = props.timestamp || props.time || props.date || props.recorded_at;
+          const t = parseTimeValue(timeVal);
+          if (Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(t)) {
+            points.push({ lat, lng, t });
+          }
+        };
+        if (data && Array.isArray(data.features)) {
+          // GeoJSON FeatureCollection（Overlandの標準エクスポート形式）
+          data.features.forEach(f => {
+            if (f && f.geometry && f.geometry.type === "Point" && Array.isArray(f.geometry.coordinates)) {
+              const [lng, lat] = f.geometry.coordinates; // GeoJSONは[経度,緯度]の順
+              pushFromProps(lng, lat, f.properties);
+            }
+          });
+        } else if (Array.isArray(data)) {
+          // {latitude, longitude, timestamp} 等のプレーンな配列形式
+          data.forEach(item => {
+            if (!item) return;
+            const lat = item.lat ?? item.latitude;
+            const lng = item.lng ?? item.lon ?? item.longitude;
+            const t = parseTimeValue(item.t ?? item.time ?? item.timestamp ?? item.date);
+            if (Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(t)) {
+              points.push({ lat, lng, t });
+            }
+          });
+        } else {
+          throw new Error("JSONの形式を認識できませんでした。");
+        }
+        return points;
+      }
+
+      // 時刻文字列／数値をエポックミリ秒に変換する。ISO8601文字列（タイムゾーン付きを含む）と、
+      // 秒単位／ミリ秒単位のUNIXエポック数値の両方に対応する。
+      function parseTimeValue(v) {
+        if (v == null || v === "") return NaN;
+        if (typeof v === "number") return v > 1e12 ? v : v * 1000;
+        const s = String(v).trim();
+        if (/^\d+$/.test(s)) {
+          const n = Number(s);
+          return n > 1e12 ? n : n * 1000;
+        }
+        const parsed = Date.parse(s);
+        return Number.isFinite(parsed) ? parsed : NaN;
       }
 
       // ---------- 起動時：進行中の記録があれば復元 ----------
