@@ -1187,6 +1187,19 @@
 
       // ---------- 状態遷移 ----------
       function arriveAt(point, time) {
+        // 乗務開始から一度もSTILL_METERS以上動かないまま待機になった場合、
+        // 実体のない「区間1」（出発地点=到着地点の移動なし区間）を記録に残さず、
+        // 業務開始時刻から直接「待機」として記録する。
+        const noMovementYet = legs.length === 0 &&
+          curLegPath.every(p => distanceMeters(curLegDep, p) < STILL_METERS);
+        if (noMovementYet) {
+          state = "waiting";
+          waitPoint = curLegDep;
+          waitStart = curLegDepTime;
+          refreshButtons();
+          saveInProgress();
+          return;
+        }
         legs.push({ depPoint: curLegDep, depTime: curLegDepTime, arrPoint: point, arrTime: time, path: curLegPath.slice() });
         state = "waiting";
         waitPoint = point; waitStart = time;
