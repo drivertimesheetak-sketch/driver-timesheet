@@ -284,6 +284,7 @@
     padding:3px 2px;vertical-align:top;
     border-radius:8px;
   }
+  td.day-col-cell.wky-col{background:#FBF2B0;}
   .weekstart{scroll-snap-align:start;}
   .sticky-col{
     position:sticky;left:0;z-index:3;background:var(--panel);
@@ -1192,6 +1193,12 @@
       : '.wk-select[data-date="'+key+'"][data-field="p"][data-idx="'+idx+'"]';
     var el = document.querySelector(selector);
     if(el){ el.value = val; applySelectColor(el, val); }
+    if(field === 'work'){
+      var isWky = (val === 'ＷＫＹ');
+      document.querySelectorAll('td.day-col-cell[data-date="'+key+'"]').forEach(function(td){
+        td.classList.toggle('wky-col', isWky);
+      });
+    }
   }
 
   // ---------------- WKY schedule list ----------------
@@ -1378,7 +1385,8 @@
 
       // work cell
       var wTd = document.createElement('td');
-      wTd.className = 'day-col-cell' + (isWeekStart ? ' weekstart' : '');
+      wTd.className = 'day-col-cell' + (isWeekStart ? ' weekstart' : '') + (entry.work === 'ＷＫＹ' ? ' wky-col' : '');
+      wTd.setAttribute('data-date', key);
       var wSel = document.createElement('select');
       wSel.className = 'wk-select';
       wSel.setAttribute('data-date', key);
@@ -1389,6 +1397,10 @@
         var k = this.getAttribute('data-date');
         getEntry(k).work = this.value;
         applySelectColor(this, this.value);
+        var isWky = (this.value === 'ＷＫＹ');
+        document.querySelectorAll('td.day-col-cell[data-date="'+k+'"]').forEach(function(td){
+          td.classList.toggle('wky-col', isWky);
+        });
         scheduleSave(formatDateLabel(k)+' のＷＫＹ予定を変更');
       });
       wTd.appendChild(wSel);
@@ -1398,7 +1410,8 @@
       for(var pj=0; pj<4; pj++){
         (function(pj){
           var pTd = document.createElement('td');
-          pTd.className = 'day-col-cell' + (isWeekStart ? ' weekstart' : '');
+          pTd.className = 'day-col-cell' + (isWeekStart ? ' weekstart' : '') + (entry.work === 'ＷＫＹ' ? ' wky-col' : '');
+          pTd.setAttribute('data-date', key);
           var pSel = document.createElement('select');
           pSel.className = 'wk-select';
           pSel.setAttribute('data-date', key);
@@ -1421,7 +1434,8 @@
 
       // note cell
       var nTd = document.createElement('td');
-      nTd.className = 'day-col-cell' + (isWeekStart ? ' weekstart' : '');
+      nTd.className = 'day-col-cell' + (isWeekStart ? ' weekstart' : '') + (entry.work === 'ＷＫＹ' ? ' wky-col' : '');
+      nTd.setAttribute('data-date', key);
       var ta = document.createElement('textarea');
       ta.className = 'wk-note';
       ta.setAttribute('data-date', key);
