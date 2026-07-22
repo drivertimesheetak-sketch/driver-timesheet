@@ -100,6 +100,12 @@
     cursor:pointer;
   }
   .mode-btn.active{background:#fff;color:var(--accent-dark);}
+  .chat-mode-btn{position:relative;}
+  .chat-badge{
+    position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;
+    background:var(--sunday);
+  }
+  .chat-badge.hidden{display:none;}
   .nav-row{
     display:flex;align-items:center;justify-content:space-between;gap:6px;
   }
@@ -229,6 +235,40 @@
   /* ---------- Week view ---------- */
   #viewWeek{flex:1 1 auto;display:none;flex-direction:column;overflow:hidden;}
   #viewWeek.active{display:flex;}
+
+  /* ---------- Chat view ---------- */
+  #viewChat{flex:1 1 auto;display:none;flex-direction:column;overflow:hidden;background:var(--bg);}
+  #viewChat.active{display:flex;}
+  .chat-messages{
+    flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:10px;display:flex;flex-direction:column;gap:8px;
+  }
+  .chat-bubble{
+    max-width:78%;padding:8px 12px;border-radius:16px;background:#fff;
+    box-shadow:0 1px 3px rgba(0,0,0,.06);align-self:flex-start;
+  }
+  .chat-bubble.own{align-self:flex-end;background:var(--pastel-orange);}
+  .chat-bubble-meta{font-size:10px;color:var(--sub-ink);margin-bottom:2px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .chat-bubble.own .chat-bubble-meta{color:var(--pastel-orange-ink);}
+  .chat-delete-btn{
+    flex:0 0 auto;border:none;background:none;color:inherit;opacity:.55;
+    font-size:11px;line-height:1;cursor:pointer;padding:2px 3px;font-weight:700;
+  }
+  .chat-delete-btn:active{opacity:1;}
+  .chat-bubble-text{font-size:13px;color:var(--ink);white-space:pre-wrap;word-break:break-word;line-height:1.4;}
+  .chat-empty{font-size:12px;color:var(--sub-ink);text-align:center;padding:20px 0;}
+  .chat-input-row{
+    flex:0 0 auto;display:flex;gap:8px;padding:8px 10px;
+    border-top:1px solid var(--line);background:var(--panel);
+  }
+  .chat-input-row input{
+    flex:1 1 auto;min-width:0;border:1px solid var(--line);border-radius:18px;
+    padding:9px 14px;font-size:13.5px;font-family:inherit;background:#fafbfc;color:var(--ink);
+  }
+  .chat-input-row button{
+    flex:0 0 auto;border:none;background:var(--accent);color:#fff;font-weight:700;
+    font-size:13px;padding:0 18px;border-radius:18px;cursor:pointer;
+  }
   .week-scroll{
     flex:1 1 auto;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;
     scroll-snap-type:x proximity;
@@ -414,9 +454,10 @@
     <div class="mode-row">
       <button class="mode-btn active" id="btnMonth">月間表示</button>
       <button class="mode-btn" id="btnWeek">週間表示</button>
+      <button class="mode-btn chat-mode-btn" id="btnChat">チャット<span class="chat-badge hidden" id="chatBadge"></span></button>
       <button class="settings-btn" id="btnSettings" title="担当者名を編集">⚙</button>
     </div>
-    <div class="nav-row">
+    <div class="nav-row" id="navRow">
       <button class="nav-btn" id="prevBtn">‹</button>
       <div class="month-label" id="monthLabel">-</div>
       <button class="nav-btn" id="nextBtn">›</button>
@@ -491,6 +532,14 @@
         <div class="wky-list-title">ＷＫＹスケジュール一覧</div>
         <div id="wkyList"></div>
       </div>
+    </div>
+  </div>
+
+  <div id="viewChat">
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-row">
+      <input type="text" id="chatInput" placeholder="メッセージを入力">
+      <button id="chatSendBtn">送信</button>
     </div>
   </div>
 
@@ -821,6 +870,122 @@
     renderUnreadPanel();
   }
 
+  // ---------------- Chat ----------------
+  var chatRef = null;
+  var chatMessages = [];
+  var lastSeenChatRef = null;
+  var lastSeenChatTs = 0;
+
+  function attachChatListener(){
+    if(!firebaseReady) return;
+    var user = firebase.auth().currentUser;
+    if(!user) return;
+    chatRef = firebase.database().ref('chatMessages');
+    lastSeenChatRef = firebase.database().ref('users/'+user.uid+'/lastSeenChatTs');
+    lastSeenChatRef.once('value').then(function(snap){
+      lastSeenChatTs = snap.val() || 0;
+      chatRef.limitToLast(200).on('value', function(msgSnap){
+        var items = [];
+        msgSnap.forEach(function(child){
+          var v = child.val();
+          items.push({id:child.key, ts:v.ts||0, user:v.user, text:v.text});
+        });
+        chatMessages = items;
+        if(viewMode === 'chat'){ renderChatMessages(); markChatRead(); }
+        updateChatBadge();
+      });
+    });
+  }
+
+  function updateChatBadge(){
+    var badge = document.getElementById('chatBadge');
+    if(!badge) return;
+    var user = firebase.auth().currentUser;
+    var myEmail = user ? user.email : null;
+    var hasUnread = viewMode !== 'chat' && chatMessages.some(function(m){
+      return m.ts > lastSeenChatTs && m.user !== myEmail;
+    });
+    badge.classList.toggle('hidden', !hasUnread);
+  }
+
+  function renderChatMessages(){
+    var container = document.getElementById('chatMessages');
+    if(!container) return;
+    var user = firebase.auth().currentUser;
+    var myEmail = user ? user.email : null;
+    container.innerHTML = '';
+    if(chatMessages.length === 0){
+      var empty = document.createElement('div');
+      empty.className = 'chat-empty';
+      empty.textContent = 'まだメッセージはありません';
+      container.appendChild(empty);
+      return;
+    }
+    chatMessages.forEach(function(m){
+      var bubble = document.createElement('div');
+      bubble.className = 'chat-bubble' + (m.user === myEmail ? ' own' : '');
+      var meta = document.createElement('div');
+      meta.className = 'chat-bubble-meta';
+      var metaText = document.createElement('span');
+      var d = new Date(m.ts);
+      var timeStr = pad(d.getMonth()+1)+'/'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+      metaText.textContent = (m.user===myEmail?'自分':m.user) + ' ・ ' + timeStr;
+      meta.appendChild(metaText);
+      if(m.user === myEmail){
+        var delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'chat-delete-btn';
+        delBtn.textContent = '削除';
+        delBtn.setAttribute('aria-label', 'メッセージを削除');
+        delBtn.addEventListener('click', function(){
+          deleteChatMessage(m.id);
+        });
+        meta.appendChild(delBtn);
+      }
+      var text = document.createElement('div');
+      text.className = 'chat-bubble-text';
+      text.textContent = m.text;
+      bubble.appendChild(meta);
+      bubble.appendChild(text);
+      container.appendChild(bubble);
+    });
+    container.scrollTop = container.scrollHeight;
+  }
+
+  function sendChatMessage(){
+    var input = document.getElementById('chatInput');
+    var text = input.value.trim();
+    if(!text) return;
+    if(!chatRef){
+      alert('チャット機能を使うにはFirebaseの設定が必要です。');
+      return;
+    }
+    var user = firebase.auth().currentUser;
+    chatRef.push({
+      ts: firebase.database.ServerValue.TIMESTAMP,
+      user: user ? user.email : '不明',
+      text: text
+    });
+    input.value = '';
+  }
+
+  function deleteChatMessage(id){
+    if(!chatRef || !id) return;
+    if(!confirm('このメッセージを削除しますか？')) return;
+    chatRef.child(id).remove();
+  }
+
+  function markChatRead(){
+    if(chatMessages.length === 0) return;
+    var maxTs = 0;
+    chatMessages.forEach(function(m){ if(m.ts > maxTs) maxTs = m.ts; });
+    if(maxTs > 0 && lastSeenChatRef){
+      lastSeenChatTs = maxTs;
+      lastSeenChatRef.set(maxTs);
+    }
+    updateChatBadge();
+  }
+
   function isEditingSomething(){
     var el = document.activeElement;
     if(!el) return false;
@@ -856,8 +1021,11 @@
     document.getElementById('monthLabel').textContent = monthLabel(currentDate);
     document.getElementById('btnMonth').classList.toggle('active', viewMode==='month');
     document.getElementById('btnWeek').classList.toggle('active', viewMode==='week');
+    document.getElementById('btnChat').classList.toggle('active', viewMode==='chat');
     document.getElementById('viewMonth').classList.toggle('active', viewMode==='month');
     document.getElementById('viewWeek').classList.toggle('active', viewMode==='week');
+    document.getElementById('viewChat').classList.toggle('active', viewMode==='chat');
+    document.getElementById('navRow').style.display = (viewMode==='chat') ? 'none' : '';
   }
 
   // ---------------- Month view ----------------
@@ -1342,6 +1510,13 @@
   document.getElementById('btnWeek').addEventListener('click', function(){
     viewMode = 'week'; updateHeader(); renderWeekView(); scrollWeekToToday();
   });
+  document.getElementById('btnChat').addEventListener('click', function(){
+    viewMode = 'chat'; updateHeader(); renderChatMessages(); markChatRead();
+  });
+  document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
+  document.getElementById('chatInput').addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); sendChatMessage(); }
+  });
   document.getElementById('prevBtn').addEventListener('click', function(){
     currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth()-1, 1);
     renderAll();
@@ -1452,6 +1627,7 @@
       if(viewMode==='week') scrollWeekToToday();
       attachRealtimeListener();
       attachChangeLogListener();
+      attachChatListener();
     });
   }
 
@@ -1493,7 +1669,9 @@
         bootApp();
       }else{
         if(changeLogRef){ changeLogRef.off(); changeLogRef = null; }
+        if(chatRef){ chatRef.off(); chatRef = null; }
         unreadItems = [];
+        chatMessages = [];
         renderUnreadPanel();
         showLogin();
       }
