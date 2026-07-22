@@ -116,6 +116,27 @@
     border:none;background:rgba(255,255,255,.14);color:#fff;
     width:28px;height:28px;border-radius:14px;font-size:13px;cursor:pointer;
   }
+  /* ---------- Unread info panel ---------- */
+  .unread-panel{
+    flex:0 0 auto;background:var(--pastel-orange);border-bottom:1px solid var(--line);
+    padding:8px 10px;
+  }
+  .unread-panel.hidden{display:none;}
+  .unread-panel-head{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+  }
+  .unread-panel-title{font-size:12px;font-weight:800;color:var(--pastel-orange-ink);}
+  .unread-confirm-btn{
+    flex:0 0 auto;border:none;background:#fff;color:var(--pastel-orange-ink);
+    font-size:11px;font-weight:700;padding:5px 12px;border-radius:14px;cursor:pointer;
+  }
+  .unread-list{
+    list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:5px;
+  }
+  .unread-list li{
+    font-size:11.5px;color:var(--pastel-orange-ink);background:#fff;
+    border-radius:10px;padding:6px 9px;line-height:1.4;word-break:break-word;
+  }
   /* ---------- Settings panel ---------- */
   #settingsPanel{
     flex:0 0 auto;background:var(--panel);border-bottom:1px solid var(--line);
@@ -403,6 +424,14 @@
     </div>
   </header>
 
+  <div id="unreadPanel" class="unread-panel hidden">
+    <div class="unread-panel-head">
+      <span class="unread-panel-title">🔔 未確認の最新情報</span>
+      <button id="unreadConfirmBtn" class="unread-confirm-btn">確認した</button>
+    </div>
+    <ul id="unreadList" class="unread-list"></ul>
+  </div>
+
   <div id="settingsPanel">
     <div class="settings-title">担当者名を入力（4名）</div>
     <div class="person-inputs">
@@ -689,12 +718,107 @@
     });
   }
 
-  function scheduleSave(){
+  var pendingChangeDescription = null;
+  var changeLogRef = null;
+  var lastSeenRef = null;
+  var lastSeenTs = 0;
+  var unreadItems = [];
+
+  function formatDateLabel(key){
+    var parts = key.split('-');
+    return parseInt(parts[1],10)+'/'+parseInt(parts[2],10);
+  }
+
+  function scheduleSave(description){
     isDirty = true;
+    if(description) pendingChangeDescription = description;
     if(saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(function(){
-      saveStateNow().then(function(){ isDirty = false; });
+      saveStateNow().then(function(){
+        isDirty = false;
+        if(pendingChangeDescription){
+          recordChange(pendingChangeDescription);
+          pendingChangeDescription = null;
+        }
+      });
     }, 350);
+  }
+
+  function recordChange(summary){
+    if(!firebaseReady || !changeLogRef) return;
+    var user = firebase.auth().currentUser;
+    var email = user ? user.email : '不明';
+    changeLogRef.push({
+      ts: firebase.database.ServerValue.TIMESTAMP,
+      user: email,
+      summary: summary
+    });
+    trimChangeLog();
+  }
+
+  function trimChangeLog(){
+    changeLogRef.once('value').then(function(snap){
+      var keys = [];
+      snap.forEach(function(child){ keys.push(child.key); });
+      if(keys.length > 150){
+        var toRemove = keys.slice(0, keys.length - 150);
+        toRemove.forEach(function(k){ changeLogRef.child(k).remove(); });
+      }
+    });
+  }
+
+  function renderUnreadPanel(){
+    var panel = document.getElementById('unreadPanel');
+    var list = document.getElementById('unreadList');
+    if(!panel || !list) return;
+    list.innerHTML = '';
+    if(unreadItems.length === 0){
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    unreadItems.forEach(function(item){
+      var li = document.createElement('li');
+      var d = new Date(item.ts);
+      var timeStr = pad(d.getMonth()+1)+'/'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+      li.textContent = '['+timeStr+'] '+item.user+'：'+item.summary;
+      list.appendChild(li);
+    });
+  }
+
+  function attachChangeLogListener(){
+    if(!firebaseReady) return;
+    var user = firebase.auth().currentUser;
+    if(!user) return;
+    changeLogRef = firebase.database().ref('changeLog');
+    lastSeenRef = firebase.database().ref('users/'+user.uid+'/lastSeenTs');
+    lastSeenRef.once('value').then(function(snap){
+      lastSeenTs = snap.val() || 0;
+      changeLogRef.limitToLast(50).on('value', function(logSnap){
+        var myEmail = user.email;
+        var items = [];
+        logSnap.forEach(function(child){
+          var v = child.val();
+          if(v && v.ts > lastSeenTs && v.user !== myEmail){
+            items.push({ts:v.ts, user:v.user, summary:v.summary});
+          }
+        });
+        items.sort(function(a,b){ return a.ts - b.ts; });
+        unreadItems = items;
+        renderUnreadPanel();
+      });
+    });
+  }
+
+  function confirmUnreadItems(){
+    var maxTs = 0;
+    unreadItems.forEach(function(item){ if(item.ts > maxTs) maxTs = item.ts; });
+    if(maxTs > 0 && lastSeenRef){
+      lastSeenTs = maxTs;
+      lastSeenRef.set(maxTs);
+    }
+    unreadItems = [];
+    renderUnreadPanel();
   }
 
   function isEditingSomething(){
@@ -831,7 +955,7 @@
         workSel.addEventListener('change', function(){
           getEntry(key).work = workSel.value;
           applySelectColor(workSel, workSel.value);
-          scheduleSave();
+          scheduleSave(formatDateLabel(key)+' のＷＫＹ予定を変更');
           syncWeekCellIfVisible(key, 'work', null, workSel.value);
         });
         workRow.appendChild(workLabel);
@@ -862,7 +986,8 @@
             sel.addEventListener('change', function(){
               getEntry(key).p[pi] = sel.value;
               applySelectColor(sel, sel.value);
-              scheduleSave();
+              var pname2 = state.persons[pi] || ('担当者'+(pi+1));
+              scheduleSave(formatDateLabel(key)+' の'+pname2+'の予定を変更');
               syncWeekCellIfVisible(key, 'p', pi, sel.value);
             });
             row.appendChild(label);
@@ -933,7 +1058,7 @@
     var id = 'wky_' + Date.now() + '_' + Math.floor(Math.random()*1000);
     state.wkyList.push({id:id, start:start, end:end, detail:detail});
     applyWkyToEntries(start, end, detail);
-    scheduleSave();
+    scheduleSave('WKYスケジュールを追加：'+detail);
     renderWeekView();
   }
 
@@ -944,7 +1069,7 @@
     var item = state.wkyList[idx];
     state.wkyList.splice(idx,1);
     removeWkyFromEntries(item.start, item.end, item.detail);
-    scheduleSave();
+    scheduleSave('WKYスケジュールを削除：'+item.detail);
     renderWeekView();
   }
 
@@ -1081,7 +1206,7 @@
         var k = this.getAttribute('data-date');
         getEntry(k).work = this.value;
         applySelectColor(this, this.value);
-        scheduleSave();
+        scheduleSave(formatDateLabel(k)+' のＷＫＹ予定を変更');
       });
       wTd.appendChild(wSel);
       workRow.appendChild(wTd);
@@ -1103,7 +1228,8 @@
             var idx = parseInt(this.getAttribute('data-idx'),10);
             getEntry(k).p[idx] = this.value;
             applySelectColor(this, this.value);
-            scheduleSave();
+            var pname3 = state.persons[idx] || ('担当者'+(idx+1));
+            scheduleSave(formatDateLabel(k)+' の'+pname3+'の予定を変更');
           });
           pTd.appendChild(pSel);
           personRows[pj].appendChild(pTd);
@@ -1120,7 +1246,7 @@
       ta.addEventListener('input', function(){
         var k = this.getAttribute('data-date');
         getEntry(k).note = this.value;
-        scheduleSave();
+        scheduleSave(formatDateLabel(k)+' のメモを編集');
       });
       nTd.appendChild(ta);
       noteRow.appendChild(nTd);
@@ -1189,7 +1315,7 @@
       (function(i){
         document.getElementById('p'+i).addEventListener('input', function(){
           state.persons[i] = this.value;
-          scheduleSave();
+          scheduleSave('担当者'+(i+1)+'の名前を変更');
           renderIdLegend();
           if(viewMode === 'week') renderWeekView();
           else renderMonthView();
@@ -1266,6 +1392,9 @@
       firebase.auth().signOut();
     }
   });
+  document.getElementById('unreadConfirmBtn').addEventListener('click', function(){
+    confirmUnreadItems();
+  });
   document.getElementById('wkyFormToggle').addEventListener('click', function(){
     var body = document.getElementById('wkyFormBody');
     var btn = document.getElementById('wkyFormToggle');
@@ -1322,6 +1451,7 @@
       renderAll();
       if(viewMode==='week') scrollWeekToToday();
       attachRealtimeListener();
+      attachChangeLogListener();
     });
   }
 
@@ -1362,6 +1492,9 @@
         hideLogin();
         bootApp();
       }else{
+        if(changeLogRef){ changeLogRef.off(); changeLogRef = null; }
+        unreadItems = [];
+        renderUnreadPanel();
         showLogin();
       }
     });
