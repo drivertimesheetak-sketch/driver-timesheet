@@ -22,6 +22,8 @@
     --pastel-red-ink:#8A2A22;
     --pastel-green:#C8E9D2;
     --pastel-green-ink:#1F5D3B;
+    --pastel-yellow:#FBF2B0;
+    --pastel-yellow-ink:#7A6A12;
     --id-work:#22282F;
     --id-p1:#2E9E5B;
     --id-p2:#E0483E;
@@ -182,7 +184,7 @@
   #monthGrid{
     flex:1 1 auto;display:grid;grid-template-columns:repeat(7,1fr);
     background:#ECDCC6;row-gap:9px;column-gap:3px;overflow-y:auto;overflow-x:hidden;
-    padding:2px;-webkit-overflow-scrolling:touch;
+    padding:2px 6px;-webkit-overflow-scrolling:touch;
   }
   .day-cell{
     background:var(--panel);display:flex;flex-direction:column;
@@ -190,6 +192,7 @@
     border-radius:10px;
   }
   .day-cell.empty{background:#EAEDF0;}
+  .day-cell.wky-day{background:var(--pastel-yellow);}
   .day-cell.holiday{border-top:3px solid var(--sunday);padding-top:3px;border-radius:10px;}
   .day-num{
     font-size:12px;font-weight:700;color:var(--ink);line-height:1.15;padding-bottom:3px;
@@ -416,11 +419,11 @@
   #loginOverlay.hidden{display:none;}
   .login-card{
     background:var(--panel);border-radius:16px;padding:28px 22px;width:100%;max-width:340px;
-    box-shadow:0 4px 18px rgba(0,0,0,.08);
+    box-shadow:0 4px 18px rgba(0,0,0,.08);text-align:center;
   }
   .login-card h2{margin:0 0 4px;font-size:16px;color:var(--ink);}
   .login-card p{margin:0 0 18px;font-size:12px;color:var(--sub-ink);}
-  .login-field{margin-bottom:12px;}
+  .login-field{margin-bottom:12px;text-align:left;}
   .login-field label{display:block;font-size:11px;color:var(--sub-ink);margin-bottom:4px;}
   .login-field input{
     width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;
@@ -437,10 +440,9 @@
 <body>
 <div id="loginOverlay">
   <div class="login-card">
-    <h2>ログイン</h2>
-    <p>共有スケジュールを見るにはログインしてください。</p>
+    <h2>🐻schedule login🐻</h2>
     <div class="login-field">
-      <label for="loginEmail">メールアドレス</label>
+      <label for="loginEmail">ＩＤ</label>
       <input type="email" id="loginEmail" autocomplete="username">
     </div>
     <div class="login-field">
@@ -1110,6 +1112,9 @@
           cell.classList.add('holiday');
           cell.title = holidayName;
         }
+        if(entry.work === 'ＷＫＹ'){
+          cell.classList.add('wky-day');
+        }
 
         var numDiv = document.createElement('div');
         var numSpan = document.createElement('span');
@@ -1132,6 +1137,7 @@
         workSel.addEventListener('change', function(){
           getEntry(key).work = workSel.value;
           applySelectColor(workSel, workSel.value);
+          cell.classList.toggle('wky-day', workSel.value === 'ＷＫＹ');
           scheduleSave(formatDateLabel(key)+' のＷＫＹ予定を変更');
           syncWeekCellIfVisible(key, 'work', null, workSel.value);
         });
