@@ -464,7 +464,7 @@
     databaseURL: "https://kuma-car-default-rtdb.firebaseio.com",
     projectId: "kuma-car"
   };
-  var firebaseReady = firebaseConfig.apiKey !== "AIzaSyAEkPMtbIkbUmk4ISBWUzSBwCkrrkO7X6E";
+  var firebaseReady = !!(firebaseConfig.apiKey && firebaseConfig.apiKey.indexOf('YOUR_') !== 0);
 
   var STORAGE_KEY = 'schedule-config-v1';
   var PERSON_OPTIONS = ['休','泊明','W'];
