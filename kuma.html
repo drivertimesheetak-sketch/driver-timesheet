@@ -122,6 +122,10 @@
     padding:8px 10px;display:none;border-radius:0 0 16px 16px;
   }
   #settingsPanel.open{display:block;}
+  .logout-btn{
+    margin-top:12px;border:1px solid var(--sunday);background:#fff;color:var(--sunday);
+    font-size:12px;font-weight:700;padding:8px 14px;border-radius:14px;cursor:pointer;width:100%;
+  }
   .settings-title{font-size:11px;color:var(--sub-ink);margin-bottom:6px;font-weight:600;}
   .person-inputs{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
   .person-inputs input{
@@ -150,7 +154,7 @@
   .weekday-row div.sat{color:var(--saturday);}
   #monthGrid{
     flex:1 1 auto;display:grid;grid-template-columns:repeat(7,1fr);
-    background:var(--bg);row-gap:9px;column-gap:3px;overflow-y:auto;overflow-x:hidden;
+    background:#ECDCC6;row-gap:9px;column-gap:3px;overflow-y:auto;overflow-x:hidden;
     padding:2px;-webkit-overflow-scrolling:touch;
   }
   .day-cell{
@@ -272,14 +276,26 @@
     flex:0 0 40%;display:flex;flex-direction:column;
     border-top:2px solid var(--line);background:var(--panel);overflow:hidden;
   }
+  .wky-form-header{
+    flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+    padding:8px 10px;border-bottom:1px solid var(--line);background:#f7e5c2;
+  }
+  .wky-form-toggle{
+    flex:0 0 auto;border:none;background:#ffffff;color:brown;
+    width:26px;height:26px;border-radius:50%;font-size:11px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:transform .2s ease;
+  }
+  .wky-form-toggle.open{transform:rotate(180deg);}
   .wky-form{
     flex:0 0 auto;padding:8px 10px 6px;border-bottom:1px solid var(--line);background:#f7e5c2;
   }
+  .wky-form.collapsed{display:none;}
   .wky-form-title{
     display:inline-flex;align-items:center;gap:5px;
     font-size:11px;font-weight:800;color:brown;
     background:#ffffff;
-    padding:4px 12px;border-radius:999px;margin-bottom:8px;
+    padding:4px 12px;border-radius:999px;
   }
   .wky-form-title::before{content:"\1F4DD";font-size:11px;}
   .wky-form-row{display:flex;gap:6px;margin-bottom:6px;align-items:flex-start;}
@@ -312,7 +328,7 @@
   .wky-list-title::before{content:"\1F4C5";font-size:10.5px;}
   .wky-empty{font-size:11.5px;color:var(--pastel-red-ink);padding:8px 2px;}
   .wky-item{
-    display:flex;align-items:flex-start;gap:8px;padding:7px 6px;
+    display:flex;align-items:center;gap:8px;padding:7px 6px;
     border:1px solid var(--pastel-red-ink);border-radius:14px;background:#fff;margin-bottom:6px;
   }
   .wky-item-period{
@@ -402,6 +418,7 @@
       <span><span class="swatch" style="background:var(--pastel-red)"></span>休</span>
       <span><span class="swatch" style="background:var(--pastel-green)"></span>泊明</span>
     </div>
+    <button id="logoutBtn" class="logout-btn">ログアウト</button>
   </div>
 
   <div id="viewMonth" class="active">
@@ -420,8 +437,11 @@
     </div>
 
     <div id="wkyPanel">
-      <div class="wky-form">
+      <div class="wky-form-header" id="wkyFormHeader">
         <div class="wky-form-title">ＷＫＹスケジュールを追加</div>
+        <button class="wky-form-toggle" id="wkyFormToggle" aria-expanded="false" aria-controls="wkyFormBody">▼</button>
+      </div>
+      <div class="wky-form collapsed" id="wkyFormBody">
         <div class="wky-form-row">
           <div class="wky-date-group">
             <input type="date" id="wkyStart">
@@ -1210,8 +1230,49 @@
     renderAll();
     if(viewMode==='week') scrollWeekToToday();
   });
+
+  // ---------------- Month view swipe navigation ----------------
+  (function(){
+    var grid = document.getElementById('monthGrid');
+    var startX = 0, startY = 0, tracking = false;
+    var SWIPE_THRESHOLD = 50;
+    grid.addEventListener('touchstart', function(e){
+      if(e.touches.length !== 1) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      tracking = true;
+    }, {passive:true});
+    grid.addEventListener('touchend', function(e){
+      if(!tracking) return;
+      tracking = false;
+      var endX = e.changedTouches[0].clientX;
+      var endY = e.changedTouches[0].clientY;
+      var dx = endX - startX;
+      var dy = endY - startY;
+      if(Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
+      if(dx < 0){
+        currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth()+1, 1);
+      }else{
+        currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth()-1, 1);
+      }
+      renderAll();
+    }, {passive:true});
+  })();
   document.getElementById('btnSettings').addEventListener('click', function(){
     document.getElementById('settingsPanel').classList.toggle('open');
+  });
+  document.getElementById('logoutBtn').addEventListener('click', function(){
+    if(firebaseReady && typeof firebase !== 'undefined' && firebase.auth){
+      firebase.auth().signOut();
+    }
+  });
+  document.getElementById('wkyFormToggle').addEventListener('click', function(){
+    var body = document.getElementById('wkyFormBody');
+    var btn = document.getElementById('wkyFormToggle');
+    var willOpen = body.classList.contains('collapsed');
+    body.classList.toggle('collapsed', !willOpen);
+    btn.classList.toggle('open', willOpen);
+    btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
   });
   document.getElementById('wkyAddBtn').addEventListener('click', function(){
     var startEl = document.getElementById('wkyStart');
