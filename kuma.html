@@ -335,7 +335,15 @@
   /* ---------- WKY schedule panel (week view) ---------- */
   #wkyPanel{
     flex:0 0 40%;display:flex;flex-direction:column;
-    border-top:2px solid var(--line);background:var(--panel);overflow:hidden;
+    background:var(--panel);overflow:hidden;min-height:90px;
+  }
+  .wky-resize-handle{
+    flex:0 0 auto;height:18px;display:flex;align-items:center;justify-content:center;
+    border-top:2px solid var(--line);background:var(--panel);
+    cursor:row-resize;touch-action:none;-webkit-user-select:none;user-select:none;
+  }
+  .wky-resize-grip{
+    width:38px;height:4px;border-radius:3px;background:var(--sub-ink);opacity:.45;
   }
   .wky-form-header{
     flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
@@ -507,6 +515,7 @@
     </div>
 
     <div id="wkyPanel">
+      <div class="wky-resize-handle" id="wkyResizeHandle" aria-hidden="true"><span class="wky-resize-grip"></span></div>
       <div class="wky-form-header" id="wkyFormHeader">
         <div class="wky-form-title">ＷＫＹスケジュールを追加</div>
         <button class="wky-form-toggle" id="wkyFormToggle" aria-expanded="false" aria-controls="wkyFormBody">▼</button>
@@ -1614,6 +1623,62 @@
     document.getElementById('wkyEnd').value = todayStr;
     updateWkyWeekdayLabel('wkyStart','wkyStartWeekday');
     updateWkyWeekdayLabel('wkyEnd','wkyEndWeekday');
+  })();
+
+  // ---------------- WKY panel resize (drag boundary) ----------------
+  (function initWkyResize(){
+    var handle = document.getElementById('wkyResizeHandle');
+    var panel = document.getElementById('wkyPanel');
+    var container = document.getElementById('viewWeek');
+    if(!handle || !panel || !container) return;
+    var MIN_H = 90;
+    var dragging = false, startY = 0, startHeight = 0;
+
+    function maxPanelHeight(){
+      return Math.max(MIN_H, container.getBoundingClientRect().height - 110);
+    }
+    function setPanelHeight(h){
+      h = Math.min(Math.max(h, MIN_H), maxPanelHeight());
+      panel.style.flex = '0 0 auto';
+      panel.style.height = h + 'px';
+    }
+    function dragStart(y){
+      dragging = true;
+      startY = y;
+      startHeight = panel.getBoundingClientRect().height;
+    }
+    function dragMove(y){
+      if(!dragging) return;
+      setPanelHeight(startHeight + (startY - y));
+    }
+    function dragEnd(){ dragging = false; }
+
+    handle.addEventListener('touchstart', function(e){
+      if(e.touches.length !== 1) return;
+      dragStart(e.touches[0].clientY);
+    }, {passive:true});
+    handle.addEventListener('touchmove', function(e){
+      if(!dragging) return;
+      e.preventDefault();
+      dragMove(e.touches[0].clientY);
+    }, {passive:false});
+    handle.addEventListener('touchend', dragEnd, {passive:true});
+    handle.addEventListener('touchcancel', dragEnd, {passive:true});
+
+    handle.addEventListener('mousedown', function(e){
+      dragStart(e.clientY);
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e){
+      if(dragging) dragMove(e.clientY);
+    });
+    document.addEventListener('mouseup', dragEnd);
+
+    window.addEventListener('resize', function(){
+      if(panel.style.height){
+        setPanelHeight(parseFloat(panel.style.height) || panel.getBoundingClientRect().height);
+      }
+    });
   })();
 
   // ---------------- Init ----------------
