@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -260,6 +261,8 @@
   }
   .chat-delete-btn:active{opacity:1;}
   .chat-bubble-text{font-size:13px;color:var(--ink);white-space:pre-wrap;word-break:break-word;line-height:1.4;}
+  .chat-read-status{font-size:9.5px;color:var(--sub-ink);margin-top:3px;text-align:right;opacity:.8;}
+  .chat-bubble.own .chat-read-status{color:var(--pastel-orange-ink);}
   .chat-empty{font-size:12px;color:var(--sub-ink);text-align:center;padding:20px 0;}
   .chat-input-row{
     flex:0 0 auto;display:flex;gap:8px;padding:8px 10px;
@@ -885,6 +888,8 @@
   var chatMessages = [];
   var lastSeenChatRef = null;
   var lastSeenChatTs = 0;
+  var chatReadsRef = null;
+  var chatReadStatus = {}; // uid -> {email, ts}
 
   function attachChatListener(){
     if(!firebaseReady) return;
@@ -892,6 +897,7 @@
     if(!user) return;
     chatRef = firebase.database().ref('chatMessages');
     lastSeenChatRef = firebase.database().ref('users/'+user.uid+'/lastSeenChatTs');
+    chatReadsRef = firebase.database().ref('chatReads');
     lastSeenChatRef.once('value').then(function(snap){
       lastSeenChatTs = snap.val() || 0;
       chatRef.limitToLast(200).on('value', function(msgSnap){
@@ -903,6 +909,15 @@
         chatMessages = items;
         if(viewMode === 'chat'){ renderChatMessages(); markChatRead(); }
         updateChatBadge();
+      });
+      chatReadsRef.on('value', function(readSnap){
+        var status = {};
+        readSnap.forEach(function(child){
+          var v = child.val();
+          if(v) status[child.key] = {email:v.email, ts:v.ts||0};
+        });
+        chatReadStatus = status;
+        if(viewMode === 'chat'){ renderChatMessages(); }
       });
     });
   }
@@ -918,11 +933,26 @@
     badge.classList.toggle('hidden', !hasUnread);
   }
 
+  function getChatReaders(m, myUid){
+    // m.tsを既読した（自分以外の）ユーザーのメールアドレス一覧を返す
+    var readers = [];
+    for(var uid in chatReadStatus){
+      if(uid === myUid) continue;
+      var st = chatReadStatus[uid];
+      if(st && st.ts >= m.ts && st.email && st.email !== m.user){
+        readers.push(st.email);
+      }
+    }
+    return readers;
+  }
+
   function renderChatMessages(){
     var container = document.getElementById('chatMessages');
     if(!container) return;
     var user = firebase.auth().currentUser;
     var myEmail = user ? user.email : null;
+    var myUid = user ? user.uid : null;
+    var scrolledToBottom = (container.scrollHeight - container.scrollTop - container.clientHeight) < 40;
     container.innerHTML = '';
     if(chatMessages.length === 0){
       var empty = document.createElement('div');
@@ -957,9 +987,18 @@
       text.textContent = m.text;
       bubble.appendChild(meta);
       bubble.appendChild(text);
+      if(m.user === myEmail){
+        var readers = getChatReaders(m, myUid);
+        var readStatus = document.createElement('div');
+        readStatus.className = 'chat-read-status';
+        readStatus.textContent = readers.length > 0 ? ('既読：' + readers.join('、')) : '';
+        bubble.appendChild(readStatus);
+      }
       container.appendChild(bubble);
     });
-    container.scrollTop = container.scrollHeight;
+    if(scrolledToBottom){
+      container.scrollTop = container.scrollHeight;
+    }
   }
 
   function sendChatMessage(){
@@ -992,6 +1031,13 @@
     if(maxTs > 0 && lastSeenChatRef){
       lastSeenChatTs = maxTs;
       lastSeenChatRef.set(maxTs);
+    }
+    var user = firebase.auth().currentUser;
+    if(maxTs > 0 && user && chatReadsRef){
+      chatReadsRef.child(user.uid).set({
+        email: user.email,
+        ts: maxTs
+      });
     }
     updateChatBadge();
   }
@@ -1753,6 +1799,8 @@
       }else{
         if(changeLogRef){ changeLogRef.off(); changeLogRef = null; }
         if(chatRef){ chatRef.off(); chatRef = null; }
+        if(chatReadsRef){ chatReadsRef.off(); chatReadsRef = null; }
+        chatReadStatus = {};
         unreadItems = [];
         chatMessages = [];
         renderUnreadPanel();
