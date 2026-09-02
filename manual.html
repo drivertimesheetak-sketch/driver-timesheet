@@ -1,4 +1,11 @@
-﻿<title>Work Tracker App 取扱説明書</title>
+<title>Work Tracker App 取扱説明書</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#f4f5fa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#11131c" media="(prefers-color-scheme: dark)">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@400;600;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -78,7 +85,8 @@
   }
 
   *{box-sizing:border-box;}
-  html{-webkit-text-size-adjust:100%;}
+  html{-webkit-text-size-adjust:100%; scroll-behavior:smooth;}
+  @media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto;} }
   body{
     margin:0;
     background:var(--paper);
@@ -138,6 +146,58 @@
     transition:color .15s, border-color .15s, background .15s;
   }
   .toc-chip:hover{color:var(--accent); border-color:var(--accent); background:var(--accent-soft);}
+
+  /* mobile menu button (hidden on desktop) */
+  .menu-btn{
+    display:none; margin-left:auto; width:40px;height:40px;flex-shrink:0;
+    border-radius:11px; border:1px solid var(--line); background:var(--surface);
+    position:relative; padding:0; -webkit-tap-highlight-color:transparent;
+  }
+  .menu-btn span{
+    position:absolute; left:10px; right:10px; height:2px; border-radius:2px;
+    background:var(--ink-soft); transition:transform .2s ease, opacity .2s ease;
+  }
+  .menu-btn span:nth-child(1){top:14px;}
+  .menu-btn span:nth-child(2){top:19px;}
+  .menu-btn span:nth-child(3){top:24px;}
+  .menu-btn.is-open span:nth-child(1){transform:translateY(5px) rotate(45deg);}
+  .menu-btn.is-open span:nth-child(2){opacity:0;}
+  .menu-btn.is-open span:nth-child(3){transform:translateY(-5px) rotate(-45deg);}
+
+  /* mobile chapter drawer */
+  .toc-panel{
+    max-height:0; overflow:hidden; background:var(--surface);
+    border-bottom:1px solid transparent; transition:max-height .28s ease;
+  }
+  .toc-panel.open{max-height:75vh; overflow-y:auto; border-bottom-color:var(--line);}
+  .toc-panel a{
+    display:flex; align-items:center; gap:13px; padding:15px 20px;
+    text-decoration:none; color:var(--ink); font-weight:700; font-size:14.5px;
+    border-top:1px solid var(--line-soft);
+  }
+  .toc-panel a:first-child{border-top:none;}
+  .toc-panel a:active{background:var(--accent-soft);}
+  .toc-panel .tn{
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:12px;
+    color:var(--accent); width:24px; flex-shrink:0;
+  }
+
+  /* back-to-top */
+  .fab-top{
+    position:fixed; right:18px; bottom:calc(18px + env(safe-area-inset-bottom));
+    width:46px;height:46px;border-radius:50%; z-index:50;
+    background:var(--accent); color:#fff; border:none; box-shadow:var(--shadow);
+    font-size:19px; line-height:1; display:flex; align-items:center; justify-content:center;
+    opacity:0; pointer-events:none; transform:translateY(10px);
+    transition:opacity .2s ease, transform .2s ease;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .fab-top.show{opacity:1; pointer-events:auto; transform:translateY(0);}
+
+  @media (max-width:760px){
+    .toc-scroll{display:none;}
+    .menu-btn{display:block;}
+  }
 
   /* ---------- hero ---------- */
   .hero{padding:56px 0 40px; border-bottom:1px solid var(--line);}
@@ -222,6 +282,8 @@
   }
   .legend .t{font-weight:700; font-size:14.5px;}
   .legend .d{color:var(--ink-soft); font-size:13.8px; margin-top:2px;}
+  .legend-2col{margin-top:28px; display:grid; grid-template-columns:1fr 1fr; gap:16px 32px;}
+  @media (max-width:640px){ .legend-2col{grid-template-columns:1fr; gap:14px;} }
 
   .steps{list-style:none; margin:22px 0 0; padding:0; display:flex; flex-direction:column; gap:16px;}
   .steps li{display:flex; gap:14px;}
@@ -270,6 +332,28 @@
 
   footer{border-top:1px solid var(--line); padding:34px 0 60px;}
   footer .wrap{display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; color:var(--ink-faint); font-size:12px;}
+
+  /* ---------- smartphone tuning ---------- */
+  @media (max-width:760px){
+    .topbar-inner{padding-top:calc(10px + env(safe-area-inset-top));}
+  }
+  @media (max-width:600px){
+    body{font-size:16px;}
+    .wrap, .wrap-narrow{padding:0 16px;}
+    .topbar-inner{padding-left:16px; padding-right:16px; gap:10px;}
+    .hero{padding:36px 0 28px;}
+    .hero p.lead{font-size:15.5px; max-width:none;}
+    .spec-strip{grid-template-columns:1fr 1fr;}
+    section.chapter{padding:40px 0;}
+    .chapter-lead{max-width:none;}
+    .phone{width:min(320px,94%);}
+    .twoshot{gap:36px;}
+    .callout{flex-direction:column; gap:4px;}
+    .steps li, .legend li{gap:12px;}
+  }
+  @media print{
+    .menu-btn, .toc-panel, .fab-top{display:none !important;}
+  }
 </style>
 
 <div class="topbar">
@@ -294,8 +378,28 @@
       <a class="toc-chip" href="#ch12">設定</a>
       <a class="toc-chip" href="#ch13">Q&amp;A</a>
     </nav>
+    <button class="menu-btn" id="menuToggle" type="button" aria-label="目次を開く" aria-expanded="false" aria-controls="tocPanel">
+      <span></span><span></span><span></span>
+    </button>
   </div>
+  <nav class="toc-panel" id="tocPanel" aria-label="章一覧">
+    <a href="#ch01"><span class="tn">01</span>アプリを起動する</a>
+    <a href="#ch02"><span class="tn">02</span>初回セットアップのお願い</a>
+    <a href="#ch03"><span class="tn">03</span>画面の見かた（カレンダー画面）</a>
+    <a href="#ch04"><span class="tn">04</span>予定を入力する</a>
+    <a href="#ch05"><span class="tn">05</span>勤務内容の詳細を入力する</a>
+    <a href="#ch06"><span class="tn">06</span>車両・走行距離・交通費・立替費</a>
+    <a href="#ch07"><span class="tn">07</span>休暇を入力する</a>
+    <a href="#ch08"><span class="tn">08</span>テンプレートに保存する</a>
+    <a href="#ch09"><span class="tn">09</span>一括入力（連続日）</a>
+    <a href="#ch10"><span class="tn">10</span>詳細一覧で確認する</a>
+    <a href="#ch11"><span class="tn">11</span>集計レポートを見る</a>
+    <a href="#ch12"><span class="tn">12</span>アプリ設定</a>
+    <a href="#ch13"><span class="tn">13</span>こんなときは（Q&amp;A）</a>
+  </nav>
 </div>
+
+<button class="fab-top" id="backToTop" type="button" aria-label="ページの先頭へ戻る">↑</button>
 
 <header class="hero">
   <div class="wrap">
@@ -597,7 +701,7 @@
         </div>
       </div>
 
-      <ul class="legend" style="margin-top:28px; display:grid; grid-template-columns:1fr 1fr; gap:16px 32px;">
+      <ul class="legend legend-2col">
         <li><span class="num">A</span><div><div class="t">勤務パターン／時刻</div><div class="d">5章で入力した内容がここでも確認できます。</div></div></li>
         <li><span class="num">B</span><div><div class="t">車両選択</div><div class="d">設定済みの車両マスターから、その日使用した車両をプルダウンで選びます。</div></div></li>
         <li><span class="num">C</span><div><div class="t">本日の総走行距離</div><div class="d">同じ日に複数の距離を入力すると、その合計がここに表示されます。</div></div></li>
@@ -944,3 +1048,47 @@
     <div>本書は現在のアプリ画面をもとに作成しています。画面デザインは今後変更される場合があります。</div>
   </div>
 </footer>
+
+<script>
+  (function () {
+    var menuBtn = document.getElementById('menuToggle');
+    var panel = document.getElementById('tocPanel');
+    var backToTop = document.getElementById('backToTop');
+
+    function closePanel() {
+      panel.classList.remove('open');
+      menuBtn.classList.remove('is-open');
+      menuBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    if (menuBtn && panel) {
+      menuBtn.addEventListener('click', function () {
+        var isOpen = panel.classList.toggle('open');
+        menuBtn.classList.toggle('is-open', isOpen);
+        menuBtn.setAttribute('aria-expanded', String(isOpen));
+      });
+      panel.addEventListener('click', function (e) {
+        if (e.target.closest('a')) closePanel();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closePanel();
+      });
+    }
+
+    if (backToTop) {
+      var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var ticking = false;
+      window.addEventListener('scroll', function () {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(function () {
+          backToTop.classList.toggle('show', window.scrollY > 700);
+          ticking = false;
+        });
+      }, { passive: true });
+      backToTop.addEventListener('click', function () {
+        window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+      });
+    }
+  })();
+</script>
