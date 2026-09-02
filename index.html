@@ -699,6 +699,18 @@
             const [lastBackupDate, setLastBackupDate] = useState(null);
             const [isBackupBannerDismissed, setIsBackupBannerDismissed] = useState(false);
 
+            // ⑨ お知らせ機能（サーバー不使用・GitHub Pages上の announcement.json を配信元にする）
+            const [announcement, setAnnouncement] = useState(null); // { id, text }
+            const [isAnnouncementDismissed, setIsAnnouncementDismissed] = useState(false);
+            const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
+            const [announcementDraft, setAnnouncementDraft] = useState('');
+            const [announcementDraftId, setAnnouncementDraftId] = useState('');
+
+            // リポジトリの announcement.json を直接編集できる GitHub の URL（分かる場合のみ設定）。
+            // 空文字なら「GitHubで編集」ボタンは非表示になり、コピー＆手動貼り付け運用になる。
+            // 例: 'https://github.com/＜ユーザー名＞/＜リポジトリ名＞/edit/main/announcement.json'
+            const ANNOUNCEMENT_EDIT_URL = '';
+
             // ⑩ 交通費ピン留め（手動登録・無制限・localStorageで永続化）
             const [pinnedTransports, setPinnedTransports] = useState([]);
             const [visitLoadingIndex, setVisitLoadingIndex] = useState(null);
@@ -899,7 +911,7 @@
             useEffect(() => {
                 const hasOpenModal = isModalOpen || isSummaryModalOpen || isVehicleSettingsOpen ||
                     isConfigModalOpen || isWelcomeModalOpen || isDatePickerOpen || isVehicleSearchOpen ||
-                    !!dateToDelete || !!deleteConfirmation || isBulkInputModalOpen;
+                    !!dateToDelete || !!deleteConfirmation || isBulkInputModalOpen || isAnnouncementModalOpen;
 
                 if (hasOpenModal) {
                     document.body.style.overflow = 'hidden';
@@ -909,7 +921,7 @@
                 return () => {
                     document.body.style.overflow = '';
                 };
-            }, [isModalOpen, isSummaryModalOpen, isVehicleSettingsOpen, isConfigModalOpen, isWelcomeModalOpen, isDatePickerOpen, isVehicleSearchOpen, dateToDelete, deleteConfirmation]);
+            }, [isModalOpen, isSummaryModalOpen, isVehicleSettingsOpen, isConfigModalOpen, isWelcomeModalOpen, isDatePickerOpen, isVehicleSearchOpen, dateToDelete, deleteConfirmation, isAnnouncementModalOpen]);
 
             useEffect(() => {
                 // データ読み込み処理
@@ -962,6 +974,21 @@
                         if (savedBackupDate) {
                             setLastBackupDate(savedBackupDate);
                         }
+
+                        // お知らせ：前回オンライン時に取得した内容をまず表示（オフライン対策）
+                        // 最新版は別useEffectで announcement.json を取得して上書きする
+                        const cachedAnnouncement = localStorage.getItem('workTrackerAnnouncementCache');
+                        if (cachedAnnouncement) {
+                            const parsedAnnouncement = JSON.parse(cachedAnnouncement);
+                            if (parsedAnnouncement && parsedAnnouncement.text) {
+                                setAnnouncement(parsedAnnouncement);
+                                // 一度「×」で消したお知らせは次回起動時に表示しない（1度きり）
+                                const dismissedId = localStorage.getItem('workTrackerAnnouncementDismissedId');
+                                if (dismissedId && String(parsedAnnouncement.id) === dismissedId) {
+                                    setIsAnnouncementDismissed(true);
+                                }
+                            }
+                        }
                     } catch (error) {
                         console.error("Failed to load data from localStorage", error);
                         showToast("データの読み込みに失敗しました", "error");
@@ -972,6 +999,51 @@
                 };
 
                 loadData();
+            }, []);
+
+            // ⑨ お知らせ：GitHub Pages 上の announcement.json を取得（サーバー不要・静的ファイル配信）
+            //   お知らせを出す/消すときは、index.html と同じ場所の announcement.json を編集してコミットするだけ。
+            //   形式: { "id": "2026-09-03-1", "text": "本文（改行OK）", "active": true }
+            //   active を false にするか text を空にすると非表示。id を変えると、前回「×」で消した人にも再表示される。
+            useEffect(() => {
+                let cancelled = false;
+
+                const applyAnnouncement = (remote) => {
+                    if (cancelled) return;
+                    setAnnouncement(remote);
+                    try {
+                        localStorage.setItem('workTrackerAnnouncementCache', JSON.stringify(remote));
+                    } catch (_) { }
+                    const dismissedId = localStorage.getItem('workTrackerAnnouncementDismissedId');
+                    setIsAnnouncementDismissed(dismissedId != null && dismissedId === String(remote.id));
+                };
+
+                const fetchAnnouncement = async () => {
+                    try {
+                        // キャッシュ回避のためクエリを付与
+                        const res = await fetch('announcement.json?t=' + Date.now(), { cache: 'no-store' });
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        const data = await res.json();
+                        if (cancelled) return;
+
+                        const text = data && data.text != null ? String(data.text) : '';
+                        const isActive = data && data.active !== false && text.trim() !== '';
+
+                        if (isActive) {
+                            applyAnnouncement({ id: String(data.id != null ? data.id : text), text });
+                        } else {
+                            // お知らせ無し（配信停止）
+                            setAnnouncement(null);
+                            try { localStorage.removeItem('workTrackerAnnouncementCache'); } catch (_) { }
+                        }
+                    } catch (e) {
+                        // オフライン等：loadData で読み込んだキャッシュ内容をそのまま表示（何もしない）
+                        console.warn('announcement.json の取得に失敗しました（キャッシュを表示）', e);
+                    }
+                };
+
+                fetchAnnouncement();
+                return () => { cancelled = true; };
             }, []);
 
             // 自動保存：勤務データ
@@ -1011,6 +1083,45 @@
                 if (!isDataLoaded) return;
                 localStorage.setItem('workTrackerPinnedTransports', JSON.stringify(pinnedTransports));
             }, [pinnedTransports, isDataLoaded]);
+
+            // ⑨ お知らせ：登録モーダルを開く（下書きと新しいidを用意）
+            const openAnnouncementModal = () => {
+                setAnnouncementDraft(announcement?.text || '');
+                const now = new Date();
+                const ymd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                setAnnouncementDraftId(`${ymd}-${String(now.getTime()).slice(-4)}`);
+                setIsAnnouncementModalOpen(true);
+            };
+
+            // ⑨ お知らせ：announcement.json に貼り付けるJSON文字列
+            const announcementJsonText = useMemo(() => {
+                const text = (announcementDraft || '').trim();
+                return JSON.stringify(
+                    { id: announcementDraftId || 'draft', text, active: text.length > 0 },
+                    null,
+                    2
+                );
+            }, [announcementDraft, announcementDraftId]);
+
+            // ⑨ お知らせ：JSONをクリップボードにコピー
+            const copyAnnouncementJson = async () => {
+                try {
+                    await navigator.clipboard.writeText(announcementJsonText);
+                    showToast("JSONをコピーしました");
+                } catch (e) {
+                    showToast("コピーできませんでした。JSONを長押しで選択してください", "error");
+                }
+            };
+
+            // ⑨ お知らせ：「×」で閉じる（1度きり・次回起動時は非表示）
+            const dismissAnnouncement = () => {
+                setIsAnnouncementDismissed(true);
+                if (announcement) {
+                    try {
+                        localStorage.setItem('workTrackerAnnouncementDismissedId', String(announcement.id));
+                    } catch (_) { }
+                }
+            };
 
             // アプリライクな表示（PWA/フルスクリーン）のためのメタタグ設定
             useEffect(() => {
@@ -3051,6 +3162,24 @@
                             </div>
                         </div>
                     </header>
+
+                    {/* ⑨ お知らせバナー（ヘッダーのすぐ下・1度きり表示） */}
+                    {announcement && !isAnnouncementDismissed && (
+                        <div className="mx-3 mt-2 mb-1 px-3 py-2.5 rounded-xl flex items-start justify-between gap-2 bg-indigo-50 border border-indigo-200 text-indigo-900 shadow-sm">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-700 mb-1">
+                                    <Info size={14} className="shrink-0" />
+                                    【お知らせ】
+                                </div>
+                                <div className="text-sm font-medium text-indigo-900 whitespace-pre-wrap break-words leading-relaxed">
+                                    {announcement.text}
+                                </div>
+                            </div>
+                            <button onClick={dismissAnnouncement} className="text-indigo-400 hover:text-indigo-600 shrink-0 mt-0.5">
+                                <X size={16} />
+                            </button>
+                        </div>
+                    )}
 
                     {/* ⑦ 今日のステータスバナー */}
                     {!isTodayBannerDismissed && (() => {
@@ -5589,6 +5718,31 @@
                                         </a>
                                     </div>
 
+                                    <hr className="border-slate-100 my-8" />
+
+                                    {/* お知らせ登録 セクション */}
+                                    <div className="mb-4">
+                                        <h4 className="text-sm font-bold text-slate-800 mb-4 border-l-4 border-indigo-500 pl-3 flex items-center gap-2 py-0.5">
+                                            <Info size={16} className="text-indigo-500" />
+                                            お知らせ登録
+                                        </h4>
+                                        <button
+                                            onClick={openAnnouncementModal}
+                                            className="w-full py-4 bg-white border border-indigo-100 text-indigo-700 font-bold rounded-2xl hover:bg-indigo-50 flex items-center justify-center gap-2 transition-colors shadow-sm text-sm"
+                                        >
+                                            <Info size={18} />
+                                            お知らせ登録
+                                        </button>
+                                        <p className="text-[10px] text-slate-400 mt-2 font-medium">
+                                            ※文章を入力し、生成された JSON を index.html と同じ場所の <span className="font-bold">announcement.json</span> に貼り付けてコミットすると、全員のヘッダー下に【お知らせ】が表示されます。
+                                        </p>
+                                        {announcement && (
+                                            <p className="text-[10px] text-slate-500 mt-1 font-medium truncate">
+                                                現在配信中：{announcement.text}
+                                            </p>
+                                        )}
+                                    </div>
+
                                 </div>
 
                                 <div className="p-4 bg-white border-t border-slate-100 flex justify-center shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)]" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
@@ -5677,6 +5831,77 @@
                         currentMonth={month}
                         onSelect={handleDateSelect}
                     />
+
+                    {/* ⑨ お知らせ登録モーダル */}
+                    {isAnnouncementModalOpen && (
+                        <div className="fixed inset-0 bg-slate-900/50 z-[1500] flex items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
+                            <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+                                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                    <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800">
+                                        <Info size={20} className="text-indigo-500" />
+                                        お知らせ登録
+                                    </h3>
+                                    <button onClick={() => setIsAnnouncementModalOpen(false)} className="p-2 rounded-full hover:bg-slate-200/50 text-slate-500">
+                                        <X size={20} />
+                                    </button>
+                                </div>
+
+                                <div className="p-6 overflow-y-auto">
+                                    <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">お知らせ内容</label>
+                                    <textarea
+                                        value={announcementDraft}
+                                        onChange={(e) => setAnnouncementDraft(e.target.value)}
+                                        placeholder="お知らせしたい文章を自由に入力してください..."
+                                        className="w-full p-4 border-0 rounded-2xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none min-h-[120px] shadow-inner text-sm leading-relaxed"
+                                    />
+
+                                    <div className="mt-4">
+                                        <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">
+                                            announcement.json に貼り付ける内容
+                                        </label>
+                                        <pre className="w-full p-3 rounded-xl bg-slate-900 text-slate-100 text-[11px] leading-relaxed overflow-x-auto whitespace-pre font-mono">{announcementJsonText}</pre>
+                                    </div>
+
+                                    <div className="mt-4 p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl text-[11px] leading-relaxed text-slate-600">
+                                        <p className="font-bold text-indigo-700 mb-1">配信手順（サーバー不要）</p>
+                                        <p>1. 上のJSONをコピー</p>
+                                        <p>2. <span className="font-bold">index.html と同じ場所</span>にある <span className="font-bold">announcement.json</span> を開いて中身を置き換え、コミット</p>
+                                        <p>3. 数分後、全員のアプリでヘッダー下に【お知らせ】が表示されます</p>
+                                        <p className="mt-1 text-slate-400">
+                                            消したいときは <span className="font-mono">"active": false</span> にするか本文を空にしてコミット。<span className="font-mono">id</span> を変えると、前回「×」で消した人にも再表示されます。各利用者は「×」で消せます（1度きり）。
+                                        </p>
+                                    </div>
+
+                                    <div className="flex flex-col gap-2 mt-5">
+                                        <button
+                                            onClick={copyAnnouncementJson}
+                                            className="w-full py-3.5 rounded-2xl font-bold text-white shadow-lg shadow-indigo-500/30 bg-indigo-600 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Save size={18} />
+                                            JSONをコピー
+                                        </button>
+                                        {ANNOUNCEMENT_EDIT_URL && (
+                                            <a
+                                                href={ANNOUNCEMENT_EDIT_URL}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="w-full py-3 rounded-2xl font-bold text-indigo-600 bg-white border border-indigo-200 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2 text-sm"
+                                            >
+                                                <Upload size={16} />
+                                                GitHubで announcement.json を編集
+                                            </a>
+                                        )}
+                                        <button
+                                            onClick={() => setIsAnnouncementModalOpen(false)}
+                                            className="w-full py-3 rounded-2xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center justify-center gap-2 text-sm"
+                                        >
+                                            閉じる
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
