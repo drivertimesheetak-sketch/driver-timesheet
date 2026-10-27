@@ -1317,15 +1317,24 @@
                     const entry = workData[dateKey];
                     if (entry && Array.isArray(entry.vehicles) && entry.vehicles.includes(vehicleSearchQuery)) {
                         const year = dateKey.split('-')[0];
-                        if (!grouped[year]) grouped[year] = [];
-                        grouped[year].push(dateKey);
+                        if (!grouped[year]) grouped[year] = { dates: [], totalMileage: 0 };
+                        grouped[year].dates.push(dateKey);
+                        if (Array.isArray(entry.mileages)) {
+                            entry.mileages.forEach(mileage => {
+                                const distance = parseFloat(mileage);
+                                if (Number.isFinite(distance)) {
+                                    grouped[year].totalMileage += distance;
+                                }
+                            });
+                        }
                     }
                 });
                 return Object.keys(grouped)
                     .sort((a, b) => Number(b) - Number(a))
                     .map(year => ({
                         year,
-                        dates: grouped[year].sort((a, b) => (a < b ? 1 : -1)),
+                        dates: grouped[year].dates.sort((a, b) => (a < b ? 1 : -1)),
+                        totalMileage: Number(grouped[year].totalMileage.toFixed(2)),
                     }));
             }, [workData, vehicleSearchQuery]);
 
@@ -3355,12 +3364,17 @@
                                                     この車種の乗車記録は見つかりませんでした。
                                                 </p>
                                             )}
-                                            {vehicleSearchResults.map(({ year, dates }) => (
+                                            {vehicleSearchResults.map(({ year, dates, totalMileage }) => (
                                                 <div key={year}>
-                                                    <h4 className="font-bold text-sm text-slate-500 mb-2 flex items-center gap-2">
-                                                        {year}年
-                                                        <span className="text-xs font-normal text-slate-300">({dates.length}日)</span>
-                                                    </h4>
+                                                    <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                                                        <h4 className="font-bold text-sm text-slate-500 flex items-center gap-2">
+                                                            {year}年
+                                                            <span className="text-xs font-normal text-slate-300">({dates.length}日)</span>
+                                                        </h4>
+                                                        <span className="text-xs font-bold text-indigo-700">
+                                                            走行距離合計: {totalMileage.toLocaleString('ja-JP')} km
+                                                        </span>
+                                                    </div>
                                                     <div className="grid grid-cols-3 gap-2">
                                                         {dates.map(dateKey => {
                                                             const [y, m, d] = dateKey.split('-').map(Number);
