@@ -632,6 +632,9 @@
 
             const [summaryTab, setSummaryTab] = useState('month');
             const [viewMode, setViewMode] = useState('month');
+            const [weekSearchQuery, setWeekSearchQuery] = useState('');
+            const [weekFilter, setWeekFilter] = useState('all');
+            const [searchScope, setSearchScope] = useState('month');
             const [isFullscreen, setIsFullscreen] = useState(false);
 
             // 日付ピッカーのモーダル状態 (追加)
@@ -1230,6 +1233,11 @@
             };
 
             const yearOptions = Array.from({ length: 16 }, (_, i) => 2025 + i);
+            const searchYearOptions = useMemo(() => Array.from(new Set([
+                ...yearOptions,
+                ...Object.keys(workData).map(dateKey => Number(dateKey.slice(0, 4))),
+                year,
+            ])).filter(Number.isInteger).sort((a, b) => b - a), [workData, year]);
 
             // --- Handlers ---
             const handleDateClick = (targetDate) => {
@@ -2803,35 +2811,187 @@
 
             const renderWeekView = () => {
                 const weekDays = [];
-                for (let day = 1; day <= daysInMonth; day++) {
-                    const d = new Date(year, month, day);
-                    weekDays.push(d);
+                if (searchScope === 'year') {
+                    Object.keys(workData)
+                        .filter(dateKey => {
+                            if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || Number(dateKey.slice(0, 4)) !== year) return false;
+                            const [entryYear, entryMonth, entryDay] = dateKey.split('-').map(Number);
+                            const date = new Date(entryYear, entryMonth - 1, entryDay);
+                            return date.getFullYear() === entryYear && date.getMonth() === entryMonth - 1 && date.getDate() === entryDay;
+                        })
+                        .sort((a, b) => b.localeCompare(a))
+                        .forEach(dateKey => {
+                            const [entryYear, entryMonth, entryDay] = dateKey.split('-').map(Number);
+                            weekDays.push(new Date(entryYear, entryMonth - 1, entryDay));
+                        });
+                } else {
+                    for (let day = 1; day <= daysInMonth; day++) {
+                        weekDays.push(new Date(year, month, day));
+                    }
                 }
+
+                const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const dayInfo = weekDays.map(dateObj => {
+                    const y = dateObj.getFullYear();
+                    const m = dateObj.getMonth() + 1;
+                    const d = dateObj.getDate();
+                    const dateKey = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    const dayOfWeek = dateObj.getDay();
+                    const isToday = today.getTime() === new Date(y, m - 1, d).getTime();
+                    const { isHoliday, name: holidayName } = getHolidayInfo(y, m, d);
+                    const storedEntry = workData[dateKey];
+                    const isCompanyHoliday = (m === 1 && (d === 2 || d === 3)) || (m === 12 && (d >= 29 && d <= 31));
+                    const isAutoHoliday = isCompanyHoliday || (isHoliday && dayOfWeek !== 0);
+                    const entry = storedEntry || (isCompanyHoliday
+                        ? { type: 'company_holiday' }
+                        : isHoliday && dayOfWeek !== 0
+                            ? { type: 'national_holiday' }
+                            : null);
+                    const isWorkDay = !!storedEntry && (isWorkType(storedEntry.type) || storedEntry.isHolidayWork);
+                    const isUnentered = !storedEntry && !isAutoHoliday && dateObj < today;
+
+                    return {
+                        dateObj, dateKey, entry, storedEntry, dayOfWeek,
+                        isToday, isHoliday, holidayName, isWorkDay, isUnentered
+                    };
+                });
+                const normalizedQuery = weekSearchQuery.trim().toLocaleLowerCase('ja-JP');
+                const filteredDays = dayInfo.filter(({ dateObj, dateKey, dayOfWeek, entry, storedEntry, isWorkDay, isUnentered }) => {
+                    if (weekFilter === 'work' && !isWorkDay) return false;
+                    if (weekFilter === 'leave' && (!storedEntry || isWorkDay)) return false;
+                    if (weekFilter === 'unentered' && !isUnentered) return false;
+                    if (!normalizedQuery) return true;
+
+                    const y = dateObj.getFullYear();
+                    const m = dateObj.getMonth() + 1;
+                    const d = dateObj.getDate();
+                    const searchFields = [
+                        dateKey,
+                        `${m}/${d}`,
+                        `${m}月${d}日`,
+                        dayNames[dayOfWeek],
+                        entry ? getStatusLabel(entry.type) : '未入力',
+                        storedEntry?.note || '',
+                        ...(Array.isArray(storedEntry?.vehicles) ? storedEntry.vehicles : []),
+                        ...(Array.isArray(storedEntry?.transportations) ? storedEntry.transportations.map(transport => transport.name || '') : []),
+                        ...(Array.isArray(storedEntry?.visits) ? storedEntry.visits.map(visit => visit.name || '') : []),
+                        ...(Array.isArray(storedEntry?.expenses) ? storedEntry.expenses.map(expense => expense.name || '') : []),
+                    ];
+                    return searchFields.some(value => String(value).toLocaleLowerCase('ja-JP').includes(normalizedQuery));
+                });
 
                 return (
                     <div className="flex flex-col space-y-3 p-3 pb-24">
-                        {weekDays.map((dateObj, index) => {
-                            const y = dateObj.getFullYear();
-                            const m = dateObj.getMonth() + 1;
+                        <div className="sticky top-0 z-30 -mx-3 -mt-3 space-y-2 border-b border-slate-200 bg-slate-50/95 p-3 backdrop-blur">
+                            <div className="flex items-center justify-between gap-2">
+                                <div
+                                    className="flex gap-1 rounded-xl bg-slate-200/70 p-1"
+                                    onTouchStart={(e) => e.stopPropagation()}
+                                    onTouchMove={(e) => e.stopPropagation()}
+                                    onTouchEnd={(e) => e.stopPropagation()}
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchScope('month')}
+                                        aria-pressed={searchScope === 'month'}
+                                        className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
+                                            searchScope === 'month' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'
+                                        }`}
+                                    >
+                                        月内
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSearchScope('year'); setWeekFilter('all'); }}
+                                        aria-pressed={searchScope === 'year'}
+                                        className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
+                                            searchScope === 'year' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'
+                                        }`}
+                                    >
+                                        年間
+                                    </button>
+                                </div>
+                                {searchScope === 'year' && (
+                                    <label className="flex items-center gap-1 text-xs font-bold text-slate-500">
+                                        <span className="sr-only">検索する年</span>
+                                        <select
+                                            value={year}
+                                            onChange={(e) => setCurrentDate(new Date(Number(e.target.value), month, 1))}
+                                            aria-label="年間検索の対象年"
+                                            className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                                        >
+                                            {searchYearOptions.map(optionYear => (
+                                                <option key={optionYear} value={optionYear}>{optionYear}年</option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                )}
+                            </div>
+                            <div className="relative">
+                                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="search"
+                                    value={weekSearchQuery}
+                                    onChange={(e) => setWeekSearchQuery(e.target.value)}
+                                    placeholder={searchScope === 'year' ? '年間の記録を検索（区分・備考・車両など）' : '日付・区分・備考・車両を検索'}
+                                    aria-label={searchScope === 'year' ? '年間の勤務記録を検索' : '月内の勤務記録を検索'}
+                                    className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-10 text-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
+                                />
+                                {weekSearchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setWeekSearchQuery('')}
+                                        aria-label="検索をクリア"
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                )}
+                            </div>
+                            <div
+                                className="flex gap-2 overflow-x-auto pb-0.5"
+                                onTouchStart={(e) => e.stopPropagation()}
+                                onTouchMove={(e) => e.stopPropagation()}
+                                onTouchEnd={(e) => e.stopPropagation()}
+                            >
+                                {[
+                                    { id: 'all', label: 'すべて' },
+                                    { id: 'work', label: '勤務' },
+                                    { id: 'leave', label: '休暇' },
+                                    ...(searchScope === 'month' ? [{ id: 'unentered', label: '未入力' }] : []),
+                                ].map(option => (
+                                    <button
+                                        key={option.id}
+                                        type="button"
+                                        onClick={() => setWeekFilter(option.id)}
+                                        aria-pressed={weekFilter === option.id}
+                                        className={`shrink-0 rounded-full border px-4 py-2 text-xs font-bold transition-colors ${
+                                            weekFilter === option.id
+                                                ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        {option.label}
+                                    </button>
+                                ))}
+                                <span className="ml-auto shrink-0 self-center text-xs font-medium text-slate-400">
+                                    {searchScope === 'year' ? `${year}年 ${filteredDays.length}件` : `${filteredDays.length} / ${dayInfo.length}日`}
+                                </span>
+                            </div>
+                        </div>
+                        {filteredDays.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-500">
+                                条件に合う記録がありません
+                            </div>
+                        ) : (() => {
+                            let lastRenderedMonth = null;
+                            return filteredDays.map(({ dateObj, dateKey, entry, dayOfWeek, isToday, isHoliday, holidayName, isUnentered }) => {
                             const d = dateObj.getDate();
-                            const dateKey = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                            let entry = workData[dateKey];
-                            const dayOfWeek = dateObj.getDay();
-                            const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
-                            const isToday = new Date().toDateString() === dateObj.toDateString();
-                            const { isHoliday, name: holidayName } = getHolidayInfo(y, m, d);
-
-                            // データ未登録でも祝日ならデフォルトで「祝日」扱いとする
-                            // 日曜日(dayOfWeek === 0)と重なる場合は自動登録しない
-                            const isCompanyHoliday = (m === 1 && (d === 2 || d === 3)) || (m === 12 && (d >= 29 && d <= 31));
-
-                            if (!entry) {
-                                if (isCompanyHoliday) {
-                                    entry = { type: 'company_holiday' };
-                                } else if (isHoliday && dayOfWeek !== 0) {
-                                    entry = { type: 'national_holiday' };
-                                }
-                            }
+                            const monthKey = `${dateObj.getFullYear()}-${dateObj.getMonth()}`;
+                            const showMonthHeading = searchScope === 'year' && monthKey !== lastRenderedMonth;
+                            lastRenderedMonth = monthKey;
 
                             let hasOvertime = false;
                             let overtimeMin = 0;
@@ -2876,9 +3036,19 @@
                             const validMileages = entry?.mileages?.filter(m => m !== '' && m !== null && m !== undefined && !isNaN(parseFloat(m))) || [];
                             const totalDailyMileage = validMileages.reduce((sum, m) => sum + parseFloat(m), 0);
 
+                            const openEntry = () => {
+                                if (searchScope === 'year') setCurrentDate(new Date(dateObj.getFullYear(), dateObj.getMonth(), 1));
+                                handleDateClick(dateObj);
+                            };
+
                             return (
+                                <React.Fragment key={dateKey}>
+                                {showMonthHeading && (
+                                    <h3 className="-mx-1 border-b border-slate-200 px-2 py-2 text-sm font-bold text-slate-600">
+                                        {dateObj.getMonth() + 1}月
+                                    </h3>
+                                )}
                                 <div
-                                    key={index}
                                     onMouseDown={() => handleLongPressStart(dateKey)}
                                     onMouseUp={handleLongPressEnd}
                                     onMouseLeave={handleLongPressEnd}
@@ -2887,7 +3057,7 @@
                                     onTouchMove={handleLongPressEnd}
                                     onClick={() => {
                                         if (!isLongPressRef.current) {
-                                            handleDateClick(dateObj);
+                                            openEntry();
                                         }
                                     }}
                                     className={`flex rounded-2xl border p-4 transition-all active:scale-[0.99] cursor-pointer
@@ -2905,7 +3075,7 @@
                                         </span>
                                         {isHoliday && <div className="text-[10px] text-rose-500 font-bold text-center leading-tight break-words w-full bg-rose-50 rounded px-1 py-0.5">{holidayName}</div>}
                                         {/* ③ 未入力バッジ（日曜・祝日も含め毎日対象） */}
-                                        {!entry && dateObj < new Date(new Date().setHours(0,0,0,0)) && (
+                                        {isUnentered && (
                                             <span className="text-[9px] font-bold text-red-500 bg-red-50 border border-red-200 rounded-full px-1.5 py-0.5 whitespace-nowrap">未入力</span>
                                         )}
                                     </div>
@@ -3059,8 +3229,10 @@
                                         )}
                                     </div>
                                 </div>
+                                </React.Fragment>
                             );
-                        })}
+                            });
+                        })()}
                     </div>
                 );
             };
@@ -3412,14 +3584,25 @@
                         <div className="fixed inset-0 bg-slate-900/40 z-[1000] flex items-end sm:items-center justify-center animation-fade-in p-4 backdrop-blur-sm">
                             <div className={`w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-colors duration-300 bg-white ring-1 ring-white/20`} onClick={(e) => e.stopPropagation()}>
                                 <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white/50 backdrop-blur-md">
-                                    <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2 tracking-tight">
+                                    <h3 className="font-bold text-xl text-slate-800 flex flex-col items-start gap-1 tracking-tight">
                                         {selectedDate && (() => {
                                             const [y, m, d] = selectedDate.split('-');
                                             const { isHoliday, name } = getHolidayInfo(Number(y), Number(m), Number(d));
+                                            const dayOfWeek = new Date(Number(y), Number(m) - 1, Number(d)).getDay();
+                                            const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
                                             return (
-                                                <div className="flex items-center gap-3">
-                                                    <span>{Number(m)}月{Number(d)}日</span>
-                                                    {isHoliday && <span className="text-xs text-rose-500 border border-rose-200 bg-rose-50 px-2 py-0.5 rounded-full font-medium">{name}</span>}
+                                                <div className="flex flex-col items-start gap-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span>{Number(m)}月{Number(d)}日 <span className="text-sm text-slate-500">{dayNames[dayOfWeek]}曜日</span></span>
+                                                        {isHoliday && <span className="text-xs text-rose-500 border border-rose-200 bg-rose-50 px-2 py-0.5 rounded-full font-medium">{name}</span>}
+                                                    </div>
+                                                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                                                        tempEntry.type
+                                                            ? 'bg-blue-50 text-blue-700'
+                                                            : 'bg-amber-50 text-amber-700'
+                                                    }`}>
+                                                        {tempEntry.type ? `勤務区分：${getStatusLabel(tempEntry.type)}` : '勤務区分を選択してください'}
+                                                    </span>
                                                 </div>
                                             );
                                         })()}
@@ -3527,7 +3710,7 @@
                                     {/* Type Selection */}
                                     <div>
                                         <div className="text-blue-800 bg-blue-10 text-center py-3 mb-4 font-bold text-1.5 tracking-wider uppercase border border-blue-200 rounded-xl shadow-sm">
-                                            本日の予定を選択
+                                            勤務・休暇区分を選択
                                         </div>
 
                                         {/* 勤務グループ */}
