@@ -612,7 +612,6 @@
             const [isVehicleSettingsOpen, setIsVehicleSettingsOpen] = useState(false);
             const [isVehicleSummaryOpen, setIsVehicleSummaryOpen] = useState(false);
             const [isVehicleSearchOpen, setIsVehicleSearchOpen] = useState(false);
-            const [isVehicleReportExpanded, setIsVehicleReportExpanded] = useState(false);
             const [vehicleSearchStep, setVehicleSearchStep] = useState('select'); // 'select' | 'results'
             const [vehicleSearchQuery, setVehicleSearchQuery] = useState('');
             const [cameFromVehicleSearch, setCameFromVehicleSearch] = useState(false);
@@ -634,8 +633,6 @@
             const [summaryTab, setSummaryTab] = useState('month');
             const [viewMode, setViewMode] = useState('month');
             const [weekSearchQuery, setWeekSearchQuery] = useState('');
-            const [dailyReportSearchQuery, setDailyReportSearchQuery] = useState('');
-            const [isDailyReportExpanded, setIsDailyReportExpanded] = useState(false);
             const [weekFilter, setWeekFilter] = useState('all');
             const [searchScope, setSearchScope] = useState('month');
             const [isFullscreen, setIsFullscreen] = useState(false);
@@ -782,7 +779,6 @@
                 visits: Array.from({ length: 10 }, () => ({ name: '', url: '' })),
                 vehicles: Array.from({ length: 5 }, () => ''),
                 mileages: Array.from({ length: 5 }, () => ''),
-                vehicleTrips: [],
                 isDeemed: false, // 追加: みなしフラグ
                 deemedTime: '', // 追加: みなし退勤時刻
                 isDetention: false, // 追加: 留置
@@ -1283,16 +1279,6 @@
                             : defaultVisits,
                         vehicles: workData[dateKey].vehicles ? [...workData[dateKey].vehicles, ...Array(10).fill('')].slice(0, 10) : defaultVehicles,
                         mileages: workData[dateKey].mileages ? [...workData[dateKey].mileages, ...Array(5).fill('')].slice(0, 5) : defaultMileages,
-                        vehicleTrips: Array.isArray(workData[dateKey].vehicleTrips)
-                            ? workData[dateKey].vehicleTrips.map(trip => {
-                                const visits = Array.isArray(trip.waits) ? [...trip.waits] : [];
-                                const lastVisit = visits[visits.length - 1];
-                                if (lastVisit?.endTime && !visits.some(visit => !visit.startTime && !visit.endTime)) {
-                                    visits.push(createEmptyVisit());
-                                }
-                                return { ...trip, waits: visits };
-                            })
-                            : [],
                     });
                 } else {
                     setTempEntry({
@@ -1315,7 +1301,6 @@
                         visits: defaultVisits,
                         vehicles: defaultVehicles,
                         mileages: defaultMileages,
-                        vehicleTrips: [],
                     });
                 }
                 setIsModalOpen(true);
@@ -1338,14 +1323,11 @@
                 const grouped = {};
                 Object.keys(workData).forEach(dateKey => {
                     const entry = workData[dateKey];
-                    const hasVehicleInEntry = entry && Array.isArray(entry.vehicles) && entry.vehicles.includes(vehicleSearchQuery);
-                    const hasVehicleInDailyReport = Array.isArray(entry?.vehicleTrips) &&
-                        entry.vehicleTrips.some(trip => trip.vehicle === vehicleSearchQuery);
-                    if (entry && (hasVehicleInEntry || hasVehicleInDailyReport)) {
+                    if (entry && Array.isArray(entry.vehicles) && entry.vehicles.includes(vehicleSearchQuery)) {
                         const year = dateKey.split('-')[0];
                         if (!grouped[year]) grouped[year] = { dates: [], totalMileage: 0 };
                         grouped[year].dates.push(dateKey);
-                        if (hasVehicleInEntry && Array.isArray(entry.mileages)) {
+                        if (Array.isArray(entry.mileages)) {
                             entry.mileages.forEach(mileage => {
                                 const distance = parseFloat(mileage);
                                 if (Number.isFinite(distance)) {
@@ -1408,10 +1390,6 @@
                         [selectedDate]: {
                             ...tempEntry,
                             note: finalNote,
-                            vehicleTrips: (tempEntry.vehicleTrips || []).map(trip => ({
-                                ...trip,
-                                waits: (trip.waits || []).filter(hasVisitContent),
-                            })),
                             breakTime: undefined
                         }
                     };
@@ -1435,7 +1413,6 @@
                                 visits: defaultVisits,
                                 vehicles: defaultVehicles,
                                 mileages: defaultMileages,
-                                vehicleTrips: [],
                             };
                         }
                     }
@@ -1459,7 +1436,6 @@
                                 visits: defaultVisits,
                                 vehicles: defaultVehicles,
                                 mileages: defaultMileages,
-                                vehicleTrips: [],
                             };
                         }
                     }
@@ -1769,124 +1745,6 @@
                 setTempEntry(prev => ({ ...prev, visits: newVisits }));
             };
 
-            const createReportId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-            const createEmptyVisit = () => ({
-                id: createReportId(),
-                startTime: '',
-                endTime: '',
-                latitude: '',
-                longitude: '',
-                address: '',
-            });
-            const hasVisitContent = (visit) => !!(
-                visit?.startTime ||
-                visit?.endTime ||
-                String(visit?.latitude || '').trim() ||
-                String(visit?.longitude || '').trim() ||
-                String(visit?.address || '').trim()
-            );
-            const getCurrentTime = () => {
-                const now = new Date();
-                return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-            };
-            const updateVehicleTrip = (tripId, updater) => {
-                setTempEntry(prev => ({
-                    ...prev,
-                    vehicleTrips: (prev.vehicleTrips || []).map(trip => trip.id === tripId ? updater(trip) : trip),
-                }));
-            };
-            const addVehicleTrip = () => {
-                const selectedVehicle = (tempEntry.vehicles || []).find(vehicle => vehicle) || '';
-                setIsVehicleReportExpanded(true);
-                setTempEntry(prev => ({
-                    ...prev,
-                    vehicleTrips: [...(prev.vehicleTrips || []), {
-                        id: createReportId(),
-                        vehicle: selectedVehicle,
-                        boardingTime: '',
-                        waits: [],
-                        alightingTime: '',
-                        workContent: '',
-                    }],
-                }));
-            };
-            const registerVisitStart = (tripId) => {
-                const visitId = createReportId();
-                updateVehicleTrip(tripId, trip => {
-                    const visits = [...(trip.waits || [])];
-                    const lastVisit = visits[visits.length - 1];
-                    if (lastVisit && !lastVisit.startTime && !lastVisit.endTime) {
-                        visits[visits.length - 1] = { ...lastVisit, id: visitId, startTime: getCurrentTime() };
-                    } else {
-                        const newVisit = { ...createEmptyVisit(), id: visitId, startTime: getCurrentTime() };
-                        visits.push(newVisit);
-                    }
-                    return { ...trip, waits: visits };
-                });
-
-                if (!navigator.geolocation) {
-                    showToast('GPSは利用できません。訪問開始時刻のみ記録しました。', 'error');
-                    return;
-                }
-                navigator.geolocation.getCurrentPosition(
-                    pos => {
-                        updateVehicleTrip(tripId, trip => ({
-                            ...trip,
-                            waits: (trip.waits || []).map(visit => visit.id === visitId
-                                ? { ...visit, latitude: String(pos.coords.latitude), longitude: String(pos.coords.longitude) }
-                                : visit),
-                        }));
-                        showToast('訪問開始時刻とGPS位置を記録しました');
-                    },
-                    error => {
-                        console.warn('訪問先のGPS取得に失敗しました', error);
-                        showToast('訪問開始時刻を記録しました。GPS位置は取得できませんでした。', 'error');
-                    },
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                );
-            };
-            const completeVisit = (tripId) => {
-                updateVehicleTrip(tripId, trip => {
-                    const visits = [...(trip.waits || [])];
-                    const activeIndex = visits.findLastIndex
-                        ? visits.findLastIndex(visit => visit.startTime && !visit.endTime)
-                        : (() => {
-                            for (let index = visits.length - 1; index >= 0; index--) {
-                                if (visits[index].startTime && !visits[index].endTime) return index;
-                            }
-                            return -1;
-                        })();
-                    if (activeIndex < 0) return trip;
-                    visits[activeIndex] = { ...visits[activeIndex], endTime: getCurrentTime() };
-                    if (!visits.some(visit => !visit.startTime && !visit.endTime)) {
-                        visits.push(createEmptyVisit());
-                    }
-                    return { ...trip, waits: visits };
-                });
-            };
-            const captureVisitLocation = (tripId, visitId) => {
-                if (!navigator.geolocation) {
-                    showToast('この端末では位置情報が利用できません', 'error');
-                    return;
-                }
-                navigator.geolocation.getCurrentPosition(
-                    pos => {
-                        updateVehicleTrip(tripId, trip => ({
-                            ...trip,
-                            waits: (trip.waits || []).map(visit => visit.id === visitId
-                                ? { ...visit, latitude: String(pos.coords.latitude), longitude: String(pos.coords.longitude) }
-                                : visit),
-                        }));
-                        showToast('GPS位置を記録しました');
-                    },
-                    error => {
-                        console.warn('訪問先のGPS取得に失敗しました', error);
-                        showToast('位置情報を取得できませんでした', 'error');
-                    },
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                );
-            };
-
             // ⑩ 交通費ピン留め長押し削除
             const startPinLongPress = (id) => {
                 const timer = setTimeout(() => {
@@ -1994,8 +1852,7 @@
                     '訪問先7名前', '訪問先7URL',
                     '訪問先8名前', '訪問先8URL',
                     '訪問先9名前', '訪問先9URL',
-                    '訪問先10名前', '訪問先10URL',
-                    '車両日報(JSON)'
+                    '訪問先10名前', '訪問先10URL'
                 ];
 
                 // データ行の作成
@@ -2064,8 +1921,7 @@
                         // 立替費詳細展開
                         ...expenses.flatMap(e => [escape(e.name), escape(e.cost)]),
                         // 訪問先詳細展開
-                        ...visits.flatMap(v => [escape(v.name), escape(v.url)]),
-                        escape(JSON.stringify(entry.vehicleTrips || []))
+                        ...visits.flatMap(v => [escape(v.name), escape(v.url)])
                     ].join(',');
                 });
 
@@ -2084,54 +1940,6 @@
                 const nowIso = new Date().toISOString();
                 localStorage.setItem('workTrackerLastBackupDate', nowIso);
                 setLastBackupDate(nowIso);
-            };
-
-            const handleExportVehicleReportCSV = () => {
-                const escape = (value) => {
-                    if (value === null || value === undefined) return '';
-                    const text = String(value);
-                    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-                };
-                const headers = ['日付', '車両番号', '車両名', '記録種別', '時刻', '緯度', '経度', '訪問先（住所）', '業務内容'];
-                const rows = [];
-
-                Object.keys(workData).sort().forEach(dateKey => {
-                    const trips = Array.isArray(workData[dateKey]?.vehicleTrips) ? workData[dateKey].vehicleTrips : [];
-                    trips.forEach((trip, tripIndex) => {
-                        const addRow = (kind, time, location = {}) => rows.push([
-                            dateKey,
-                            tripIndex + 1,
-                            trip.vehicle || '',
-                            kind,
-                            time || '',
-                            location.latitude || '',
-                            location.longitude || '',
-                            location.address || '',
-                            trip.workContent || '',
-                        ].map(escape).join(','));
-
-                        addRow('乗車', trip.boardingTime);
-                        (trip.waits || []).forEach(wait => {
-                            if (wait.startTime || wait.latitude || wait.longitude || wait.address) {
-                                addRow('訪問開始', wait.startTime, wait);
-                            }
-                            if (wait.endTime) addRow('訪問終了', wait.endTime, wait);
-                        });
-                        if (trip.alightingTime) addRow('降車', trip.alightingTime);
-                    });
-                });
-
-                const content = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
-                const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `vehicle_daily_report_${new Date().toISOString().slice(0, 10)}.csv`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                setTimeout(() => URL.revokeObjectURL(url), 1000);
-                showToast(`${rows.length}件の日報記録をCSV出力しました`);
             };
 
             // CSVインポート機能
@@ -2189,11 +1997,9 @@
 
                     const allRows = parseCSVText(text);
                     if (allRows.length < 2) return;
-                    const tripLogIndex = allRows[0].indexOf('車両日報(JSON)');
 
                     const newWorkData = { ...workData };
                     let importCount = 0;
-                    let tripLogImportErrors = 0;
 
                     // ラベル逆引きヘルパー
                     const getTypeIdByLabel = (label) => WORK_TYPES.find(t => t.label === label)?.id || 'work';
@@ -2283,36 +2089,6 @@
                                 }
                             }
 
-                            let vehicleTrips = tripLogIndex < 0 && Array.isArray(workData[dateKey]?.vehicleTrips)
-                                ? workData[dateKey].vehicleTrips
-                                : [];
-                            const tripLogJson = tripLogIndex >= 0 ? cols[tripLogIndex] : '';
-                            if (tripLogJson) {
-                                try {
-                                    const parsedTrips = JSON.parse(tripLogJson);
-                                    if (Array.isArray(parsedTrips)) {
-                                        vehicleTrips = parsedTrips.filter(trip => trip && typeof trip === 'object').map(trip => ({
-                                            id: String(trip.id || createReportId()),
-                                            vehicle: String(trip.vehicle || ''),
-                                            boardingTime: String(trip.boardingTime || ''),
-                                            waits: Array.isArray(trip.waits) ? trip.waits.filter(wait => wait && typeof wait === 'object').map(wait => ({
-                                                id: String(wait.id || createReportId()),
-                                                startTime: String(wait.startTime || ''),
-                                                endTime: String(wait.endTime || ''),
-                                                latitude: String(wait.latitude || ''),
-                                                longitude: String(wait.longitude || ''),
-                                                address: String(wait.address || ''),
-                                            })) : [],
-                                            alightingTime: String(trip.alightingTime || ''),
-                                            workContent: String(trip.workContent || ''),
-                                        }));
-                                    }
-                                } catch (error) {
-                                    tripLogImportErrors++;
-                                    console.error('車両日報データの復元に失敗しました', error);
-                                }
-                            }
-
                             newWorkData[dateKey] = {
                                 startTime,
                                 endTime,
@@ -2332,7 +2108,6 @@
                                 transportations,
                                 expenses,
                                 visits,
-                                vehicleTrips,
                             };
 
                             importCount++;
@@ -2342,7 +2117,7 @@
                     }
 
                     setWorkData(newWorkData);
-                    showToast(`${importCount}件のデータをインポートしました。${tripLogImportErrors ? ` 車両日報${tripLogImportErrors}件は復元できませんでした。` : ''}`, tripLogImportErrors ? 'error' : 'info');
+                    showToast(`${importCount}件のデータをインポートしました。`);
                 };
                 reader.readAsText(file);
                 event.target.value = '';
@@ -2594,40 +2369,6 @@
                     return calculateStats(workData, reportYear, null);
                 }
             }, [workData, reportYear, reportMonth, summaryTab]);
-
-            const dailyReportRows = useMemo(() => {
-                const query = dailyReportSearchQuery.trim().toLocaleLowerCase('ja-JP');
-                return Object.entries(workData)
-                    .filter(([dateKey]) => {
-                        const [entryYear, entryMonth] = dateKey.split('-').map(Number);
-                        return entryYear === reportYear &&
-                            (summaryTab === 'year' || entryMonth === reportMonth + 1);
-                    })
-                    .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
-                    .flatMap(([dateKey, entry]) => (Array.isArray(entry.vehicleTrips) ? entry.vehicleTrips : [])
-                        .map((trip, tripIndex) => ({ dateKey, trip, tripIndex }))
-                    )
-                    .filter(({ dateKey, trip }) => {
-                        if (!query) return true;
-                        const searchableValues = [
-                            dateKey,
-                            trip.vehicle,
-                            trip.boardingTime,
-                            trip.alightingTime,
-                            trip.workContent,
-                            ...(Array.isArray(trip.waits) ? trip.waits.flatMap(visit => [
-                                visit.startTime,
-                                visit.endTime,
-                                visit.address,
-                                visit.latitude,
-                                visit.longitude,
-                            ]) : []),
-                        ];
-                        return searchableValues.some(value =>
-                            String(value || '').toLocaleLowerCase('ja-JP').includes(query)
-                        );
-                    });
-            }, [workData, reportYear, reportMonth, summaryTab, dailyReportSearchQuery]);
 
             const monthlySummary = useMemo(() => {
                 return calculateStats(workData, year, month);
@@ -3137,19 +2878,6 @@
                         ...(Array.isArray(storedEntry?.transportations) ? storedEntry.transportations.map(transport => transport.name || '') : []),
                         ...(Array.isArray(storedEntry?.visits) ? storedEntry.visits.map(visit => visit.name || '') : []),
                         ...(Array.isArray(storedEntry?.expenses) ? storedEntry.expenses.map(expense => expense.name || '') : []),
-                        ...(Array.isArray(storedEntry?.vehicleTrips) ? storedEntry.vehicleTrips.flatMap(trip => [
-                            trip.vehicle || '',
-                            trip.boardingTime || '',
-                            trip.alightingTime || '',
-                            trip.workContent || '',
-                            ...(Array.isArray(trip.waits) ? trip.waits.flatMap(visit => [
-                                visit.startTime || '',
-                                visit.endTime || '',
-                                visit.address || '',
-                                visit.latitude || '',
-                                visit.longitude || '',
-                            ]) : []),
-                        ]) : []),
                     ];
                     return searchFields.some(value => String(value).toLocaleLowerCase('ja-JP').includes(normalizedQuery));
                 });
@@ -3207,7 +2935,7 @@
                                     type="search"
                                     value={weekSearchQuery}
                                     onChange={(e) => setWeekSearchQuery(e.target.value)}
-                                    placeholder={searchScope === 'year' ? '年間検索（業務内容・訪問先・車両など）' : '日付・区分・業務内容・訪問先・車両を検索'}
+                                    placeholder={searchScope === 'year' ? '年間の記録を検索（区分・備考・車両など）' : '日付・区分・備考・車両を検索'}
                                     aria-label={searchScope === 'year' ? '年間の勤務記録を検索' : '月内の勤務記録を検索'}
                                     className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-10 text-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
                                 />
@@ -3739,7 +3467,6 @@
                                 onClick={() => {
                                     setReportYear(year);
                                     setReportMonth(month);
-                                    setIsDailyReportExpanded(false);
                                     setIsSummaryModalOpen(true);
                                 }}
                                 className="flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-200 active:scale-95 group"
@@ -3800,19 +3527,6 @@
                                                         </optgroup>
                                                     )
                                                 ))}
-                                                {(() => {
-                                                    const registeredVehicles = Object.values(vehicleMaster).flat();
-                                                    const reportVehicles = Array.from(new Set(Object.values(workData).flatMap(entry =>
-                                                        Array.isArray(entry.vehicleTrips) ? entry.vehicleTrips.map(trip => trip.vehicle).filter(Boolean) : []
-                                                    ))).filter(vehicle => !registeredVehicles.includes(vehicle));
-                                                    return reportVehicles.length > 0 && (
-                                                        <optgroup label="日報記録の車種">
-                                                            {reportVehicles.map(vehicle => (
-                                                                <option key={vehicle} value={vehicle}>{vehicle}</option>
-                                                            ))}
-                                                        </optgroup>
-                                                    );
-                                                })()}
                                             </select>
                                         </div>
                                     ) : (
@@ -3909,7 +3623,7 @@
                                     </div>
                                 </div>
 
-                                <div className="p-5 overflow-y-auto space-y-6 bg-white flex flex-col">
+                                <div className="p-5 overflow-y-auto space-y-6 bg-white">
                                     {/* ② テンプレート選択エリア */}
                                     {templates.length > 0 && (
                                         <div className="bg-indigo-50/70 rounded-2xl border border-indigo-100 p-3">
@@ -4110,7 +3824,7 @@
                                     )}
 
                                     {showWorkInputs && (
-                                        <div className="animate-in slide-in-from-top-2 duration-200 fade-in space-y-6 flex flex-col">
+                                        <div className="animate-in slide-in-from-top-2 duration-200 fade-in space-y-6">
 
                                             {!tempEntry.isHolidayWork && (
                                                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-inner">
@@ -4272,189 +3986,6 @@
                                                 </div>
                                             </div>
 
-                                            {tempEntry.type && (
-                                                <div className="order-last animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1 mt-4">
-                                                        <FileText size={12} /> 業務内容・備考
-                                                    </label>
-                                                    <textarea
-                                                        value={tempEntry.note}
-                                                        onChange={(e) => setTempEntry({ ...tempEntry, note: e.target.value })}
-                                                        placeholder="メモを入力..."
-                                                        className="w-full p-4 border-0 rounded-2xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none min-h-[100px] shadow-inner text-sm"
-                                                    />
-                                                </div>
-                                            )}
-
-                                            <div className="order-last bg-amber-50/60 rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
-                                                <div className="p-3 flex items-center justify-between bg-amber-50 border-b border-amber-100">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setIsVehicleReportExpanded(prev => !prev)}
-                                                        aria-expanded={isVehicleReportExpanded}
-                                                        className="flex flex-1 items-center gap-2 text-left text-xs font-bold text-amber-900 uppercase tracking-wider"
-                                                    >
-                                                        {isVehicleReportExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                                        <FileText size={14} /> 車両別日報
-                                                        <span className="text-amber-700">({tempEntry.vehicleTrips?.length || 0}件)</span>
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={addVehicleTrip}
-                                                        className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold"
-                                                    >
-                                                        ＋ 乗車記録
-                                                    </button>
-                                                </div>
-                                                {isVehicleReportExpanded && <div className="p-3 space-y-3">
-                                                    <p className="text-[11px] leading-relaxed text-amber-900/70">
-                                                        訪問先ごとに開始・終了時刻と場所を記録します。開始時にGPS位置を取得します。住所は手入力してください。
-                                                    </p>
-                                                    {(tempEntry.vehicleTrips || []).map((trip, tripIndex) => {
-                                                        const waits = trip.waits || [];
-                                                        const lastWait = waits[waits.length - 1];
-                                                        const vehicleOptions = Array.from(new Set([
-                                                            ...Object.values(vehicleMaster).flat(),
-                                                            ...(trip.vehicle ? [trip.vehicle] : []),
-                                                        ]));
-                                                        return (
-                                                            <div key={trip.id} className="p-3 bg-white border border-amber-100 rounded-xl space-y-3">
-                                                                <div className="flex items-center justify-between">
-                                                                    <span className="text-xs font-bold text-amber-900">乗車 {tripIndex + 1}</span>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => setTempEntry(prev => ({
-                                                                            ...prev,
-                                                                            vehicleTrips: (prev.vehicleTrips || []).filter(item => item.id !== trip.id),
-                                                                        }))}
-                                                                        className="p-1 text-slate-400 hover:text-red-500"
-                                                                        aria-label="乗車記録を削除"
-                                                                    >
-                                                                        <Trash2 size={16} />
-                                                                    </button>
-                                                                </div>
-                                                                <select
-                                                                    value={trip.vehicle || ''}
-                                                                    onChange={e => updateVehicleTrip(trip.id, item => ({ ...item, vehicle: e.target.value }))}
-                                                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                                                >
-                                                                    <option value="">車両を選択</option>
-                                                                    {vehicleOptions.map(vehicle => <option key={vehicle} value={vehicle}>{vehicle}</option>)}
-                                                                </select>
-                                                                <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 space-y-2">
-                                                                    <label className="flex items-center gap-1.5 text-sm font-bold text-blue-900">
-                                                                        <Clock size={15} className="text-blue-600" /> 乗車時刻
-                                                                    </label>
-                                                                    <div className="flex gap-2">
-                                                                        <input
-                                                                            type="time"
-                                                                            value={trip.boardingTime || ''}
-                                                                            onChange={e => updateVehicleTrip(trip.id, item => ({ ...item, boardingTime: e.target.value }))}
-                                                                            className="min-w-0 flex-1 p-2.5 bg-white border border-blue-200 rounded-lg text-base font-bold text-slate-800"
-                                                                        />
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => updateVehicleTrip(trip.id, item => ({ ...item, boardingTime: getCurrentTime() }))}
-                                                                            className="shrink-0 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm"
-                                                                        >
-                                                                            乗務開始
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                                <textarea
-                                                                    value={trip.workContent || ''}
-                                                                    onChange={e => updateVehicleTrip(trip.id, item => ({ ...item, workContent: e.target.value }))}
-                                                                    placeholder="この車両で行った業務内容"
-                                                                    rows="2"
-                                                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                                                />
-                                                                {waits.map((wait, waitIndex) => (
-                                                                    <div key={wait.id} className={`p-2.5 border rounded-lg space-y-2 ${hasVisitContent(wait) ? 'bg-sky-50/70 border-sky-100' : 'bg-white border-dashed border-sky-200'}`}>
-                                                                        <div className="flex items-center justify-between gap-2">
-                                                                            <div className="text-xs font-bold text-sky-900">訪問先 {waitIndex + 1}{!hasVisitContent(wait) ? '（次の訪問先）' : ''}</div>
-                                                                            {wait.endTime && (
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => updateVehicleTrip(trip.id, item => ({
-                                                                                        ...item, waits: (item.waits || []).filter(visit => visit.id !== wait.id),
-                                                                                    }))}
-                                                                                    className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-red-600 hover:bg-red-50 rounded-md"
-                                                                                    aria-label={`訪問先 ${waitIndex + 1} を削除`}
-                                                                                >
-                                                                                    <Trash2 size={13} /> 削除
-                                                                                </button>
-                                                                            )}
-                                                                        </div>
-                                                                        <input
-                                                                            value={wait.address || ''}
-                                                                            onChange={e => updateVehicleTrip(trip.id, item => ({
-                                                                                ...item, waits: (item.waits || []).map(w => w.id === wait.id ? { ...w, address: e.target.value } : w),
-                                                                            }))}
-                                                                            placeholder="訪問先の住所・施設名"
-                                                                            className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm"
-                                                                        />
-                                                                        <div className="grid grid-cols-2 gap-2">
-                                                                            <label className="text-[11px] text-slate-600">
-                                                                                訪問開始
-                                                                                <input type="time" value={wait.startTime || ''} onChange={e => updateVehicleTrip(trip.id, item => ({
-                                                                                    ...item, waits: (item.waits || []).map(w => w.id === wait.id ? { ...w, startTime: e.target.value } : w),
-                                                                                }))} className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
-                                                                            </label>
-                                                                            <label className="text-[11px] text-slate-600">
-                                                                                訪問終了
-                                                                                <input type="time" value={wait.endTime || ''} onChange={e => updateVehicleTrip(trip.id, item => ({
-                                                                                    ...item, waits: (item.waits || []).map(w => w.id === wait.id ? { ...w, endTime: e.target.value } : w),
-                                                                                }))} className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
-                                                                            </label>
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                                <div className="flex flex-wrap gap-2">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => registerVisitStart(trip.id)}
-                                                                        disabled={!!lastWait?.startTime && !lastWait?.endTime}
-                                                                        className="flex-1 min-w-[130px] py-2 bg-sky-600 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold"
-                                                                    >
-                                                                        訪問開始
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => completeVisit(trip.id)}
-                                                                        disabled={!lastWait?.startTime || !!lastWait?.endTime}
-                                                                        className="flex-1 min-w-[100px] py-2 bg-cyan-600 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold"
-                                                                    >
-                                                                        訪問先終了
-                                                                    </button>
-                                                                </div>
-                                                                <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-3 space-y-2">
-                                                                    <label className="flex items-center gap-1.5 text-sm font-bold text-indigo-900">
-                                                                        <Clock size={15} className="text-indigo-600" /> 降車時刻
-                                                                    </label>
-                                                                    <div className="flex gap-2">
-                                                                        <input
-                                                                            type="time"
-                                                                            value={trip.alightingTime || ''}
-                                                                            onChange={e => updateVehicleTrip(trip.id, item => ({ ...item, alightingTime: e.target.value }))}
-                                                                            className="min-w-0 flex-1 p-2.5 bg-white border border-indigo-200 rounded-lg text-base font-bold text-slate-800"
-                                                                        />
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => updateVehicleTrip(trip.id, item => ({ ...item, alightingTime: getCurrentTime() }))}
-                                                                            className="shrink-0 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm"
-                                                                        >
-                                                                            乗務終了
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                    {!tempEntry.vehicleTrips?.length && (
-                                                        <div className="text-center text-xs text-slate-400 py-2">乗車記録を追加すると、車両ごとの日報を入力できます。</div>
-                                                    )}
-                                                </div>}
-                                            </div>
 
                                             <div className="bg-indigo-50/50 rounded-2xl border border-indigo-100 shadow-sm overflow-hidden transition-all duration-300">
                                                 <div className="p-3 flex justify-between items-center bg-indigo-50/50 border-b border-indigo-100/50">
@@ -5131,6 +4662,19 @@
                                         </div>
                                     )}
 
+                                    {tempEntry.type && (
+                                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1 mt-4">
+                                                <FileText size={12} /> 業務内容・備考
+                                            </label>
+                                            <textarea
+                                                value={tempEntry.note}
+                                                onChange={(e) => setTempEntry({ ...tempEntry, note: e.target.value })}
+                                                placeholder="メモを入力..."
+                                                className="w-full p-4 border-0 rounded-2xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none min-h-[100px] shadow-inner text-sm"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="p-4 border-t border-slate-100 bg-white flex flex-col gap-2 shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)] z-20" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
@@ -5855,73 +5399,6 @@
                                             ※ {reportYear}年1月1日 〜 {reportYear}年12月31日 の累計データ
                                         </div>
                                     )}
-                                    <div className="border-t-4 border-amber-200 bg-amber-50/40">
-                                        <div className="px-4 pt-4">
-                                            <label className="relative block">
-                                                <span className="sr-only">日報の業務内容・訪問先・車両を検索</span>
-                                                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                                <input
-                                                    type="search"
-                                                    value={dailyReportSearchQuery}
-                                                    onChange={event => setDailyReportSearchQuery(event.target.value)}
-                                                    placeholder="業務内容・訪問先・車両などを検索"
-                                                    className="w-full rounded-xl border border-amber-200 bg-white py-3 pl-10 pr-3 text-sm outline-none transition focus:border-amber-300 focus:ring-2 focus:ring-amber-500/20"
-                                                />
-                                            </label>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsDailyReportExpanded(prev => !prev)}
-                                            aria-expanded={isDailyReportExpanded}
-                                            className="flex w-full items-center justify-between p-4 text-left"
-                                        >
-                                            <span className="font-bold text-amber-900 flex items-center gap-2">
-                                                {isDailyReportExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                                                <FileText size={16} /> 日報集計
-                                            </span>
-                                            <span className="text-xs text-amber-800">{dailyReportRows.length}件</span>
-                                        </button>
-                                        {isDailyReportExpanded && (
-                                            <div className="px-4 pb-4 space-y-3">
-                                                <div className="space-y-2">
-                                                    {dailyReportRows.map(({ dateKey, trip, tripIndex }) => (
-                                                        <div key={`${dateKey}-${trip.id || tripIndex}`} className="p-3 bg-white border border-amber-100 rounded-xl">
-                                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-bold text-amber-900">
-                                                                <span>{dateKey}</span>
-                                                                <span>{trip.vehicle || '車両未選択'}</span>
-                                                                <span>{trip.boardingTime || '--:--'} 乗車</span>
-                                                                <span>{trip.alightingTime || '--:--'} 降車</span>
-                                                            </div>
-                                                            {trip.workContent && (
-                                                                <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap break-words">{trip.workContent}</p>
-                                                            )}
-                                                            {(trip.waits || []).filter(hasVisitContent).map((visit, visitIndex) => (
-                                                                <div key={visit.id || visitIndex} className="mt-2 pl-2 border-l-2 border-sky-300 text-xs text-slate-600">
-                                                                    <div>訪問先 {visitIndex + 1}: {visit.startTime || '--:--'}〜{visit.endTime || '--:--'}</div>
-                                                                    {visit.address && <div>場所: {visit.address}</div>}
-                                                                    {visit.latitude && visit.longitude && (
-                                                                        <a
-                                                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${visit.latitude},${visit.longitude}`)}`}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            className="text-blue-700 underline underline-offset-2"
-                                                                        >
-                                                                            MAP
-                                                                        </a>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    ))}
-                                                    {dailyReportRows.length === 0 && (
-                                                        <div className="py-4 text-center text-xs text-slate-400">
-                                                            {dailyReportSearchQuery.trim() ? '検索条件に一致する日報記録はありません' : 'この期間の日報記録はありません'}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
                                 </div>
 
                                 <div className="p-4 bg-white border-t border-slate-100 mt-auto shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)]" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
@@ -6163,13 +5640,6 @@
                                                 CSV形式でダウンロード
                                             </button>
                                             <button
-                                                onClick={handleExportVehicleReportCSV}
-                                                className="w-full py-4 bg-white border border-amber-200 text-amber-800 font-bold rounded-2xl hover:bg-amber-50 flex items-center justify-center gap-2 transition-colors shadow-sm"
-                                            >
-                                                <Download size={18} />
-                                                車両別日報CSVをダウンロード
-                                            </button>
-                                            <button
                                                 onClick={handleImportClick}
                                                 className="w-full py-4 bg-white border border-sky-100 text-sky-700 font-bold rounded-2xl hover:bg-sky-50 flex items-center justify-center gap-2 transition-colors shadow-sm"
                                             >
@@ -6177,7 +5647,7 @@
                                                 CSVファイルから復元
                                             </button>
                                             <p className="text-[10px] text-slate-400 mt-1 font-medium">
-                                                ※通常CSVはバックアップ・復元用です。車両別日報CSVは乗車・訪問先・降車の記録用です。日報データも通常CSVに含まれます。
+                                                ※機種変更時などのデータ移行やバックアップにご利用ください。
                                             </p>
 
                                             {/* Hidden File Input */}
